@@ -1,0 +1,33 @@
+[gd_scene load_steps=4 format=3 uid="uid://c7qgcqqf4agib"]
+
+[ext_resource type="PackedScene" uid="uid://bawrmdt67ohun" path="res://addons/SceneManager/Scenes/Scene.tscn" id="1_gkrpo"]
+[ext_resource type="Script" uid="uid://tq281hjrbkut" path="res://addons/CustomGame/Scenes/TileMapGame.cs" id="2_inhwx"]
+[ext_resource type="PackedScene" uid="uid://ckeidvpi72g3b" path="res://addons/NotificationsManager/NotificationManager.tscn" id="3_7885u"]
+
+[node name="Game" instance=ExtResource("1_gkrpo")]
+script = ExtResource("2_inhwx")
+gameVersion = 1
+PlayerEntityID = "player"
+CameraFollowPlayer = false
+CameraRotateWithPlayer = false
+DefaultMouseMode = 0
+DefaultCursorTexture = null
+DefaultCursorHotspot = Vector2(0, 0)
+
+[node name="ColorRect" type="ColorRect" parent="." index="0"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
+
+[node name="Camera2D" type="Camera2D" parent="." index="2"]
+position = Vector2(310, 181)
+zoom = Vector2(2, 2)
+
+[node name="UICanvasLayer" type="CanvasLayer" parent="." index="3"]
+
+[node name="NotificationManager" parent="UICanvasLayer" index="0" instance=ExtResource("3_7885u")]
+unique_name_in_owner = true
