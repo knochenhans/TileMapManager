@@ -2,7 +2,7 @@ using Godot;
 
 public partial class TileMapGame : EntitySystemGame
 {
-    protected TileMapManager TileMapManager;
+    public TileMapManager TileMapManager;
 
     public override void _Ready()
     {

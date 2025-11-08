@@ -7,6 +7,7 @@ public partial class TileMapManager : Node2D
 {
     [Export] public TileMapLayer TileMapLayerGround;
     [Export] public TileMapLayer TileMapLayerRooms;
+    [Export] public TileMapLayer TileMapLayerUsableArea;
     [Export] public TileMapLayer TileMapLayerFogOfWar;
 
     [Export] public TimedAudioStreamPlayer2D HitSoundPlayer;
@@ -128,5 +129,23 @@ public partial class TileMapManager : Node2D
     public Vector2I WorldToMap(Vector2 globalPosition)
     {
         return TileMapLayerGround.LocalToMap(globalPosition);
+    }
+
+    public Rect2I GetUsedRect()
+    {
+        return TileMapLayerUsableArea.GetUsedRect();
+    }
+
+    public bool IsTileUnderFogOfWar(Vector2I tilePosition)
+    {
+        if (TileMapLayerFogOfWar == null)
+            return true;
+
+        var tileData = TileMapLayerFogOfWar.GetCellTileData(tilePosition);
+
+        if (tileData == null)
+            return false;
+    
+        return true;
     }
 }
