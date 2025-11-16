@@ -133,6 +133,11 @@ public partial class TileMapManager : Node2D
 
     public Rect2I GetUsedRect()
     {
+        if (TileMapLayerUsableArea == null)
+        {
+            Logger.LogWarning("TileMapLayerUsableArea is not set. Cannot get used rect.", "TileMapManager", Logger.LogTypeEnum.World);
+            return new Rect2I();
+        }
         return TileMapLayerUsableArea.GetUsedRect();
     }
 

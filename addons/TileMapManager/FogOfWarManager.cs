@@ -1,7 +1,9 @@
 using Godot;
 using Godot.Collections;
-using System;
-using System.Collections.Generic;
+using Game.Utils;
+
+using static Logger;
+using SaveData = Godot.Collections.Dictionary<string, Godot.Variant>;
 
 public partial class FogOfWarManager : Node
 {
@@ -11,11 +13,12 @@ public partial class FogOfWarManager : Node
     [Export] public Vector2I FogTileAtlasCoord = new(9, 2);
     [Export] public TileMapManager TileMapManager;
 
-    public Array<Node2D> Nodes;
+    public Array<StageNode> Nodes;
     public Rect2I UsableArea;
 
-    private HashSet<Vector2I> revealedTiles = [];
-    private Array<Vector2I> lastNodeTiles = [];
+    Array<Vector2I> revealedTiles = [];
+    Array<Vector2I> exceptions = [];
+    Array<Vector2I> lastNodeTiles = [];
 
     public override void _Ready()
     {
@@ -23,23 +26,23 @@ public partial class FogOfWarManager : Node
 
         if (FogTilemap == null)
         {
-            GD.PushError("FogOfWarManager: FogTilemap not assigned!");
+            LogError("FogOfWarManager: FogTilemap not assigned!", LogTypeEnum.Framework);
             return;
         }
 
         FillUsableArea();
     }
 
-    public void RegisterPlayers(Array<Node2D> playerNodes)
+    public void RegisterActors(Array<StageNode> actorNodes)
     {
-        Nodes = playerNodes;
+        Nodes = actorNodes;
 
         for (int i = 0; i < Nodes.Count; i++)
         {
             var node = Nodes[i];
             if (node == null)
             {
-                GD.PushError($"FogOfWarManager: Node at index {i} is null!");
+                LogError($"FogOfWarManager: Node at index {i} is null!", LogTypeEnum.Framework);
                 continue;
             }
             var tilePos = FogTilemap.LocalToMap(node.GlobalPosition);
@@ -47,8 +50,14 @@ public partial class FogOfWarManager : Node
                 lastNodeTiles.Add(tilePos);
             else
                 lastNodeTiles[i] = tilePos;
-            RevealTilesAroundPlayer(tilePos);
+            RevealTilesAroundActor(tilePos);
         }
+    }
+
+    public void AddFogOfWarExceptions(Array<Vector2I> exceptionTiles)
+    {
+        foreach (var tile in exceptionTiles)
+            exceptions.Add(tile);
     }
 
     public void FillUsableArea()
@@ -68,6 +77,9 @@ public partial class FogOfWarManager : Node
 
     public override void _Process(double delta)
     {
+        if (FogTilemap == null || Nodes == null)
+            return;
+
         for (int i = 0; i < Nodes.Count; i++)
         {
             var node = Nodes[i];
@@ -81,26 +93,28 @@ public partial class FogOfWarManager : Node
                     lastNodeTiles.Add(currentTile);
                 else
                     lastNodeTiles[i] = currentTile;
-                RevealTilesAroundPlayer(currentTile);
+                RevealTilesAroundActor(currentTile);
             }
         }
     }
 
-    private void RevealTilesAroundPlayer(Vector2I centerTile)
+    private void RevealTilesAroundActor(Vector2I centerTile)
     {
         foreach (Vector2I tilePos in GetTilesInRadius(centerTile, RevealRadius))
         {
             if (PermanentReveal)
             {
-                if (!revealedTiles.Add(tilePos))
-                    continue; // Already revealed earlier
+                if (revealedTiles.Contains(tilePos))
+                    continue;
+                revealedTiles.Add(tilePos);
             }
 
-            FogTilemap.SetCellsTerrainConnect([tilePos], 0, -1); // Clear fog tile
+            if (!exceptions.Contains(tilePos))
+                FogTilemap.SetCellsTerrainConnect([tilePos], 0, -1); // Clear fog tile
         }
     }
 
-    public static IEnumerable<Vector2I> GetTilesInRadius(Vector2I center, int radius)
+    public static System.Collections.Generic.IEnumerable<Vector2I> GetTilesInRadius(Vector2I center, int radius)
     {
         int rSquared = radius * radius;
 
@@ -121,12 +135,12 @@ public partial class FogOfWarManager : Node
         FillUsableArea();
     }
 
-    public IEnumerable<Vector2I> SaveFogState()
+    public System.Collections.Generic.IEnumerable<Vector2I> SaveFogState()
     {
         return revealedTiles;
     }
 
-    public void LoadFogState(IEnumerable<Vector2I> savedTiles)
+    public void LoadFogState(System.Collections.Generic.IEnumerable<Vector2I> savedTiles)
     {
         revealedTiles.Clear();
         FillUsableArea();
@@ -151,7 +165,8 @@ public partial class FogOfWarManager : Node
     public void RevealTile(Vector2I tilePos)
     {
         FogTilemap.SetCellsTerrainConnect([tilePos], 0, -1);
-        revealedTiles.Add(tilePos);
+        if (!revealedTiles.Contains(tilePos))
+            revealedTiles.Add(tilePos);
     }
 
     public void RevealRect(Rect2I tileRect, int padding = 0)
@@ -161,10 +176,35 @@ public partial class FogOfWarManager : Node
         for (int x = tileRect.Position.X - padding; x < tileRect.End.X + padding; x++)
             for (int y = tileRect.Position.Y - padding; y < tileRect.End.Y + padding; y++)
             {
-                tiles.Add(new Vector2I(x, y));
-                revealedTiles.Add(new Vector2I(x, y));
+                var v = new Vector2I(x, y);
+                tiles.Add(v);
+                if (!revealedTiles.Contains(v))
+                    revealedTiles.Add(v);
             }
 
         FogTilemap.SetCellsTerrainConnect(tiles, 0, -1);
+    }
+
+    public void Load(SaveData data)
+    {
+        if (data.TryGetValue("RevealedTiles", out Variant revealedTilesObj))
+        {
+            var savedTilesStr = (Array<string>)revealedTilesObj;
+            var savedTiles = GameUtils.ParseVector2IArrayString(savedTilesStr.ToString());
+            LoadFogState(savedTiles);
+        }
+    }
+
+    public SaveData Save()
+    {
+        var arr = new Array<Vector2I>();
+        foreach (var t in SaveFogState())
+            arr.Add(t);
+
+        var data = new SaveData
+        {
+            ["RevealedTiles"] = (Variant)arr
+        };
+        return data;
     }
 }
