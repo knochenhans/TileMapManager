@@ -3,7 +3,7 @@ using Godot;
 
 public partial class TileMapGame : EntitySystemGame
 {
-    public override void InitGame(bool loadGame = false)
+    public override void InitStage(bool loadGame = false)
     {
         var stage = StageManager.Instance.CurrentStageScene;
         if (stage == null)
@@ -11,17 +11,7 @@ public partial class TileMapGame : EntitySystemGame
 
         GameInputManager = new TilemapGameInputManager(this, Camera, (stage as TileMapStage).TileMapManager);
 
-        base.InitGame(loadGame);
-    }
-
-    protected override void InitSaveStateManager()
-    {
-        SaveStateManager = new TileMapGameSaveStateManager(this);
-
-        StageManager.Instance.StoreStageStates();
-
-        var initialState = StageManager.Instance.GetSaveData();
-        SaveStateManager.SaveGameState(initialState, "init");
+        base.InitStage(loadGame);
     }
 
     protected override void InitStageNode(StageNode stageNode)
