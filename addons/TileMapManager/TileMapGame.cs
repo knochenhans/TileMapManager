@@ -1,28 +1,59 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
+
 using Godot;
 
 public partial class TileMapGame : EntitySystemGame
 {
-    public override void InitStage(bool loadGame = false)
+    NavigationRegion2D NavigationRegion;
+
+    #region [Lifecycle]
+    public override void InitGame(bool loadGame = false)
     {
-        var stage = StageManager.Instance.CurrentStageScene;
+        var stage = StageManager.CurrentStageScene;
         if (stage == null)
             return;
 
-        GameInputManager = new TilemapGameInputManager(this, Camera, (stage as TileMapStage).TileMapManager);
+        base.InitGame(loadGame);
 
-        base.InitStage(loadGame);
+        (stage as TileMapStage).TileMapManager.TileDestroyed += OnTileDestroyed;
+
+        NavigationRegion = stage.GetNodeOrNull<NavigationRegion2D>("NavigationRegion2D");
+        // GameInputManager = new TilemapGameInputManager(this, Camera, (stage as TileMapStage).TileMapManager);
+    }
+
+    public override void UninitGame()
+    {
+        var stage = StageManager.CurrentStageScene;
+        if (stage == null)
+            return;
+
+        (stage as TileMapStage).TileMapManager.TileDestroyed -= OnTileDestroyed;
+
+        base.UninitGame();
     }
 
     protected override void InitStageNode(StageNode stageNode)
     {
         if (stageNode is Entity entity)
-            entity.IsOnTileMapLayer?.SetTileMapLayer((StageManager.Instance.CurrentStageScene as TileMapStage).TileMapManager.TileMapLayerGround);
+        {
+            var tileMapManager = (StageManager.CurrentStageScene as TileMapStage).TileMapManager;
+            entity.InitForTileMapLayer(tileMapManager);
+        }
 
         base.InitStageNode(stageNode);
     }
+    #endregion
 
-    protected HashSet<Vector2I> GetTilesFromRectangle(Rect2 rect)
+    #region [Events]
+    protected virtual void OnTileDestroyed(ExplosionResource explosionResource, Node2D source, Vector2 position, float strength)
+    {
+        (Camera as Camera).AddTrauma(strength);
+    }
+    #endregion
+
+    #region [Utility]
+    protected static HashSet<Vector2I> GetTilesFromRectangle(Rect2 rect)
     {
         HashSet<Vector2I> roomTiles = [];
 
@@ -40,4 +71,24 @@ public partial class TileMapGame : EntitySystemGame
         }
         return roomTiles;
     }
+
+    protected async Task BakeNavigationPolygonAsync()
+    {
+        if (NavigationRegion.IsBaking())
+        {
+            Logger.Log("Waiting for navigation polygon to finish baking...", Logger.LogTypeEnum.World);
+
+            //TODO: Doesn't seem to work as expected
+            await ToSignal(NavigationRegion, NavigationRegion2D.SignalName.BakeFinished);
+        }
+
+        Logger.Log("Baking navigation polygon...", Logger.LogTypeEnum.World);
+        CallDeferred(MethodName.BakeNavigationPolygon);
+    }
+
+    protected void BakeNavigationPolygon()
+    {
+        NavigationRegion.BakeNavigationPolygon();
+    }
+    #endregion
 }
