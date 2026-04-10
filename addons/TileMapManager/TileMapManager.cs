@@ -30,7 +30,7 @@ public partial class TileMapManager : Node2D
     [Export] public string MaterialTileDataLayerName = "material";
     [Export] public NavigationRegion2D NavigationRegion;
 
-    [Signal] public delegate void TileHitEventHandler(ExplosionResource explosionResource, Node2D source, Vector2 position);
+    [Signal] public delegate void TileHitEventHandler(ExplosionResource explosionResource, Node2D source, Vector2 position, float strength);
     [Signal] public delegate void TileDestroyedEventHandler(ExplosionResource explosionResource, Node2D source, Vector2 position, float strength);
 
     Array<TileMapLayer> TileMapLayers = [];
@@ -159,13 +159,13 @@ public partial class TileMapManager : Node2D
     #endregion
 
     #region [Public]
-    private void HandleImpactResult(TileImpactResult result, Node2D source, Vector2 position, string material)
+    private void HandleImpactResult(TileImpactResult result, Node2D source, TileMapLayer layer, Vector2 position, string material)
     {
         if (result.WasHit)
         {
             var explosionResource = HitExplosionDatabase.GetExplosionResource(material);
             if (explosionResource != null)
-                EmitSignal(SignalName.TileHit, explosionResource, source, position);
+                EmitSignal(SignalName.TileHit, explosionResource, layer, position, result.Strength);
         }
 
         if (result.WasDestroyed)
@@ -173,8 +173,8 @@ public partial class TileMapManager : Node2D
             var explosionResource = DestructionExplosionDatabase.GetExplosionResource(material);
             if (explosionResource != null)
             {
-                EmitSignal(SignalName.TileHit, explosionResource, source, position);
-                EmitSignal(SignalName.TileDestroyed, explosionResource, source, position, result.Strength);
+                EmitSignal(SignalName.TileHit, explosionResource, layer, position, result.Strength);
+                EmitSignal(SignalName.TileDestroyed, explosionResource, layer, position, result.Strength);
             }
 
             NavigationRegion?.BakeNavigationPolygon();
@@ -183,10 +183,16 @@ public partial class TileMapManager : Node2D
 
     public void ApplyTileImpact(TileImpact impact)
     {
-        var cell = WorldToMap(impact.WorldPosition);
+        var layers = LayersByTag.Where(kvp => kvp.Key.HasFlag(impact.TargetTag)).SelectMany(kvp => kvp.Value).ToArray();
+        if (layers.Length == 0)
+        {
+            Logger.LogWarning($"No layers found with tag {impact.TargetTag}. Tile impact will not be applied.", "TileMapManager", Logger.LogTypeEnum.World);
+            return;
+        }
 
-        var layer = GetTopLayerByTag(cell, impact.TargetTag);
-        if (layer == null)
+        var layer = layers[0];
+
+        if (!TryRaycastTile(impact.Source.GlobalPosition, impact.WorldPosition, layer.TileSet.GetPhysicsLayerCollisionLayer(0), out var hitPos, out var cell))
             return;
 
         var tileData = layer.GetCellTileData(cell);
@@ -198,9 +204,45 @@ public partial class TileMapManager : Node2D
         if (string.IsNullOrEmpty(material))
             material = tileData.GetCustomData(MaterialTileDataLayerName).AsString();
 
-        var result = (layer as CustomTileMapLayer).ApplyDamage(cell, impact.Damage);
+        var result = layer.ApplyDamage(cell, impact.Damage);
 
-        HandleImpactResult(result, impact.Source, impact.WorldPosition, material);
+        HandleImpactResult(result, impact.Source, layer, hitPos, material);
+    }
+
+    public bool TryRaycastTile(Vector2 origin, Vector2 target, uint collisionMask, out Vector2 hitPosition, out Vector2I cell)
+    {
+        hitPosition = Vector2.Zero;
+        cell = Vector2I.Zero;
+        var space = GetWorld2D().DirectSpaceState;
+
+        var query = PhysicsRayQueryParameters2D.Create(origin, target);
+        query.CollisionMask = collisionMask;
+        query.CollideWithAreas = true;
+
+        var result = space.IntersectRay(query);
+
+        if (result.Count == 0)
+            return false;
+
+        hitPosition = (Vector2)result["position"];
+
+        var colliderObj = result["collider"].AsGodotObject();
+
+        TileMapLayer layer;
+        if (colliderObj is TileMapLayer tileLayer)
+        {
+            layer = tileLayer;
+        }
+        else
+        {
+            // not a tilemap, ignore
+            return false;
+        }
+
+        // now convert global hit position to cell
+        cell = layer.LocalToMap(hitPosition);
+
+        return true;
     }
 
     public Vector2I WorldToMap(Vector2 globalPosition)

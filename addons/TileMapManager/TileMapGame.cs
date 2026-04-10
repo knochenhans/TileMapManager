@@ -16,7 +16,10 @@ public partial class TileMapGame : EntitySystemGame
 
         base.InitGame(loadGame);
 
-        (stage as TileMapStage).TileMapManager.TileDestroyed += OnTileDestroyed;
+        var tileMapManager = (stage as TileMapStage).TileMapManager;
+        tileMapManager.TileHit += StageManager.CombatSystem.OnAddExplosion;
+        tileMapManager.TileDestroyed += OnTileDestroyed;
+        tileMapManager.TileDestroyed += StageManager.CombatSystem.OnAddExplosion;
 
         NavigationRegion = stage.GetNodeOrNull<NavigationRegion2D>("NavigationRegion2D");
         // GameInputManager = new TilemapGameInputManager(this, Camera, (stage as TileMapStage).TileMapManager);
@@ -28,7 +31,10 @@ public partial class TileMapGame : EntitySystemGame
         if (stage == null)
             return;
 
-        (stage as TileMapStage).TileMapManager.TileDestroyed -= OnTileDestroyed;
+        var tileMapManager = (stage as TileMapStage).TileMapManager;
+        tileMapManager.TileHit -= StageManager.CombatSystem.OnAddExplosion;
+        tileMapManager.TileDestroyed -= OnTileDestroyed;
+        tileMapManager.TileDestroyed -= StageManager.CombatSystem.OnAddExplosion;
 
         base.UninitGame();
     }
