@@ -20,12 +20,18 @@ public partial class FogOfWarManager : Node
     Array<Vector2I> revealedTiles = [];
     Array<Vector2I> exceptions = [];
     Array<Vector2I> lastNodeTiles = [];
+    int initialPadding = 16;
     #endregion
 
     #region [Godot]
     public override void _Ready()
     {
-        UsableArea = TileMapManager.GetUsedRect();
+        var fogTileSize = FogTilemap.TileSet.TileSize;
+        var defaultTileSize = TileMapManager.DefaultTileSize;
+        var factor = new Vector2I(defaultTileSize.X / fogTileSize.X, defaultTileSize.Y / fogTileSize.Y);
+
+        var usedRect = TileMapManager.GetUsedRect();
+        UsableArea = new Rect2I(usedRect.Position * factor, usedRect.Size * factor);
 
         if (FogTilemap == null)
         {
@@ -33,7 +39,7 @@ public partial class FogOfWarManager : Node
             return;
         }
 
-        FillUsableArea();
+        FillUsableArea(initialPadding);
     }
 
     public override void _Process(double delta)
@@ -71,15 +77,15 @@ public partial class FogOfWarManager : Node
 
     public void AddFogOfWarExceptions(Array<Vector2I> exceptionTiles) => exceptions.AddRange(exceptionTiles);
 
-    public void FillUsableArea()
+    public void FillUsableArea(int padding = 0)
     {
         if (FogTilemap == null)
             return;
 
         // Fill the usable area with fog
-        for (int x = UsableArea.Position.X; x < UsableArea.End.X; x++)
+        for (int x = UsableArea.Position.X - padding; x < UsableArea.End.X + padding; x++)
         {
-            for (int y = UsableArea.Position.Y; y < UsableArea.End.Y; y++)
+            for (int y = UsableArea.Position.Y - padding; y < UsableArea.End.Y + padding; y++)
             {
                 FogTilemap.SetCell(new Vector2I(x, y), 0, FogTileAtlasCoord); // Set fog tile
             }

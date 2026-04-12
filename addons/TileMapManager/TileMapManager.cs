@@ -42,7 +42,7 @@ public partial class TileMapManager : Node2D
     MapGenerator MapGenerator = new();
     Array<Rect2I> Rooms = [];
 
-    Vector2I DefaultTileSize = new(32, 32);
+    public Vector2I DefaultTileSize = new(32, 32);
     #endregion
 
     #region [Godot]
@@ -271,12 +271,43 @@ public partial class TileMapManager : Node2D
 
     public Rect2I GetUsedRect()
     {
-        if (TileMapLayerUsableArea == null)
+        Rect2I combined = new();
+        bool hasAny = false;
+
+        // Include all available tile map layers
+        if (TileMapLayers?.Count > 0)
         {
-            Logger.LogWarning("TileMapLayerUsableArea is not set. Cannot get used rect.", "TileMapManager", Logger.LogTypeEnum.World);
+            foreach (var layer in TileMapLayers)
+            {
+                var r = layer.GetUsedRect();
+                if (!hasAny)
+                {
+                    combined = r;
+                    hasAny = true;
+                    continue;
+                }
+
+                var topLeft = new Vector2I(
+                    Math.Min(combined.Position.X, r.Position.X),
+                    Math.Min(combined.Position.Y, r.Position.Y)
+                );
+                var bottomRight = new Vector2I(
+                    Math.Max(combined.Position.X + combined.Size.X, r.Position.X + r.Size.X),
+                    Math.Max(combined.Position.Y + combined.Size.Y, r.Position.Y + r.Size.Y)
+                );
+
+                combined.Position = topLeft;
+                combined.Size = bottomRight - topLeft;
+            }
+        }
+
+        if (!hasAny)
+        {
+            Logger.LogWarning("No tile map layers available to determine used rect. Returning empty Rect2I.", "TileMapManager", Logger.LogTypeEnum.World);
             return new Rect2I();
         }
-        return TileMapLayerUsableArea.GetUsedRect();
+
+        return combined;
     }
 
     public bool IsTileUnderFogOfWar(Vector2I tilePosition)
