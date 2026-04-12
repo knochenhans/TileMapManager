@@ -99,6 +99,9 @@ public partial class CustomTileMapLayer : TileMapLayer
 
         if (TileStates.TryGetValue(tilePosition, out var state))
         {
+            if (!state.IsDestructible)
+                return result;
+
             var health = state.Health - damage;
 
             if (health < 0)
