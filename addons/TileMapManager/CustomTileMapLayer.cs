@@ -7,9 +7,6 @@ public partial class CustomTileMapLayer : TileMapLayer
     #region [Fields and Properties]
     [Export] public TileMapManager.TileLayerTag Tags;
 
-    [Export] public int OriginalSourceID = -1;
-    [Export] public int DestroyedSourceID = -1;
-
     [ExportGroup("Tile Data Layers")]
     [Export] public bool UseTileDataLayers = false;
     [Export] public string DestructibleTileDataLayerName = "destructible";
@@ -19,7 +16,7 @@ public partial class CustomTileMapLayer : TileMapLayer
     [Export] public string TileSizeTileDataLayerName = "tile_size";
     [Export] public string DestructionStrengthTileDataLayerName = "destruction_strength";
     [Export] public string DestructionModeTileDataLayerName = "destruction_mode";
-    [Export] public string DamageStageCountTileDataLayerName = "damage_stage_count";
+    [Export] public string DamageStagesDataLayerName = "damage_stages";
 
     [Export] public NodePath AreasNodePath;
 
@@ -100,117 +97,83 @@ public partial class CustomTileMapLayer : TileMapLayer
     {
         var result = new TileImpactResult();
 
-        int tileSourceID = GetCellSourceId(tilePosition);
-        if (tileSourceID < 0)
-            return result;
-
-        if (TileSet.GetSource(tileSourceID) is not TileSetAtlasSource tileSource)
-            return result;
-
-        Vector2I atlasCoord = GetCellAtlasCoords(tilePosition);
-        Vector2I tileSize = Vector2I.One;
-        Vector2I mainDistance = Vector2I.Zero;
-
-        var tileData = GetCellTileData(tilePosition);
-        if (tileData == null)
-            return result;
-
-        // Resolve root tile
-        if (tileData.HasCustomData(MainTileDataLayerName))
+        if (TileStates.TryGetValue(tilePosition, out var state))
         {
-            var mainTileAtlasCoord = (Vector2I)tileData.GetCustomData(MainTileDataLayerName);
-            if (mainTileAtlasCoord != Vector2I.Zero)
+            var health = state.Health - damage;
+
+            if (health < 0)
             {
-                mainDistance = atlasCoord - mainTileAtlasCoord;
-                atlasCoord = mainTileAtlasCoord;
+                // TileStates.Remove(tilePosition);
+                RemoveTile(state.RootPosition, state.Size);
+
+                result.WasDestroyed = true;
+                result.Strength = state.Strength;
             }
-        }
-
-        Vector2I rootPosition = tilePosition - mainDistance;
-
-        tileData = tileSource.GetTileData(atlasCoord, 0);
-        if (tileData == null)
-            return result;
-
-        if (tileData.HasCustomData(TileSizeTileDataLayerName))
-        {
-            tileSize = (Vector2I)tileData.GetCustomData(TileSizeTileDataLayerName);
-            if (tileSize == Vector2I.Zero)
-                tileSize = Vector2I.One;
-        }
-
-        if (!TileStates.TryGetValue(rootPosition, out var state))
-        {
-            state = CreateTileStateFromTileData(rootPosition, tileData);
-            TileStates[rootPosition] = state;
-        }
-
-        if (!state.IsDestructible)
-            return result;
-
-        result.WasHit = true;
-        result.Material = state.Material;
-
-        state.Health -= damage;
-        int currentHealth = state.Health;
-
-        ApplyVisualStageFromState(rootPosition, state);
-
-        if (currentHealth <= 0)
-        {
-            switch (state.DestructionMode)
+            else
             {
-                case TileDestructionMode.RemoveTile:
-                    RemoveTile(rootPosition, tileSize);
-                    break;
+                if (ApplyVisualStageFromState(tilePosition, state))
+                {
+                    RemoveTile(state.RootPosition, state.Size);
+
+                    result.WasDestroyed = true;
+                    result.Strength = state.Strength;
+
+                    return result;
+                }
             }
 
-            TileStates.Remove(rootPosition);
+            state.Health = health;
 
-            result.WasDestroyed = true;
-            result.Strength = state.Strength;
+            result.WasHit = true;
+            result.Material = state.Material;
         }
 
         return result;
     }
 
-    private void ApplyVisualStageFromState(Vector2I rootPosition, TileState state)
+    private TileState FindNearbyState(Vector2I pos)
     {
-        float t = 1f - ((float)state.Health / state.MaxHealth);
+        const int searchRadius = 2;
 
-        // ✅ Use real stage data
-        if (state.DamageStages?.Length > 0)
+        foreach (var kv in TileStates)
         {
-            int totalSlots = state.DamageStages.Length + 1;
-            int stageIndex = Mathf.Clamp((int)(t * totalSlots), 0, totalSlots - 1);
+            var existingPos = kv.Key;
 
-            // stage 0 = original tile → no change
-            if (stageIndex == 0)
-                return;
-
-            int targetSourceID = state.DamageStages[stageIndex - 1];
-
-            // 💥 destruction via stage
-            if (targetSourceID < 0)
-            {
-                RemoveTile(rootPosition, state.Size);
-                return;
-            }
-
-            ApplyStage(rootPosition, targetSourceID, state.AtlasCoord, state.Size);
-            return;
+            if (existingPos.DistanceTo(pos) <= searchRadius)
+                return kv.Value;
         }
 
-        // 🧓 fallback (optional)
-        int sourceId = state.BaseSourceId;
-
-        if (t > 0.5f)
-            sourceId = state.BaseSourceId + 1;
-
-        ApplyStage(rootPosition, sourceId, state.AtlasCoord, state.Size);
+        return null;
     }
 
-    private void ApplyStage(Vector2I rootPosition, int sourceID, Vector2I atlasCoord, Vector2I tileSize)
+    private bool ApplyVisualStageFromState(Vector2I rootPosition, TileState state)
+    {
+        int health = Mathf.Max(state.Health, 0);
+        float t = 1f - ((float)health / state.MaxHealth);
+
+        if (state.DamageStages == null || state.DamageStages.Length == 0)
+            return false;
+
+        int totalSlots = state.DamageStages.Length + 1;
+        int stageIndex = Mathf.Clamp((int)(t * totalSlots), 0, totalSlots - 1);
+
+        // stage 0 = original
+        if (stageIndex == 0)
+            return false;
+
+        int targetSourceID = state.DamageStages[stageIndex - 1];
+
+        if (targetSourceID < 0 || targetSourceID == state.CurrentSourceId)
+            return true;
+
+        ApplyVisualStage(rootPosition, targetSourceID, state.AtlasCoord, state.Size);
+
+        state.CurrentSourceId = targetSourceID;
+
+        return false;
+    }
+
+    private void ApplyVisualStage(Vector2I rootPosition, int sourceID, Vector2I atlasCoord, Vector2I tileSize)
     {
         for (int x = 0; x < tileSize.X; x++)
         {
@@ -218,51 +181,122 @@ public partial class CustomTileMapLayer : TileMapLayer
             {
                 var offset = new Vector2I(x, y);
 
-                SetCell(
-                    rootPosition + offset,
-                    sourceID,
-                    atlasCoord + offset
-                );
+                var currentSourceID = GetCellSourceId(rootPosition + offset);
+
+                SetCell(rootPosition + offset, sourceID, atlasCoord + offset);
+                GD.Print($"Set cell at {rootPosition + offset} from source {currentSourceID} to source {sourceID} with atlas coord {atlasCoord + offset}");
             }
         }
     }
 
     private void RemoveTile(Vector2I rootPosition, Vector2I tileSize)
     {
+        PrepareTileStatesAround([rootPosition]);
+
+        var affected = new Array<Vector2I>();
+
         for (int x = 0; x < tileSize.X; x++)
         {
             for (int y = 0; y < tileSize.Y; y++)
             {
-                var offset = new Vector2I(x, y);
-                SetCellsTerrainConnect([rootPosition + offset], 0, -1);
+                var pos = rootPosition + new Vector2I(x, y);
+
+                affected.Add(pos);
+
+                SetCellsTerrainConnect([pos], 0, -1);
+            }
+        }
+
+        InvalidateTileStatesAround(affected);
+    }
+
+    private void PrepareTileStatesAround(Array<Vector2I> changedTiles)
+    {
+        foreach (var tile in changedTiles)
+        {
+            for (int x = -1; x <= 1; x++)
+            {
+                for (int y = -1; y <= 1; y++)
+                {
+                    var pos = tile + new Vector2I(x, y);
+
+                    var tileData = GetCellTileData(pos);
+                    if (tileData == null)
+                        continue;
+
+                    var atlasCoord = GetCellAtlasCoords(pos);
+
+                    var root = ResolveRootPosition(pos);
+
+                    if (TileStates.TryGetValue(root, out var state))
+                    {
+                        SetCell(pos, state.BaseSourceId, atlasCoord);
+                    }
+                }
+            }
+        }
+    }
+
+    private Vector2I ResolveRootPosition(Vector2I pos)
+    {
+        var tileData = GetCellTileData(pos);
+        if (tileData == null)
+            return pos;
+
+        var atlasCoord = GetCellAtlasCoords(pos);
+
+        if (tileData.HasCustomData(MainTileDataLayerName))
+        {
+            var main = (Vector2I)tileData.GetCustomData(MainTileDataLayerName);
+
+            if (main != Vector2I.Zero)
+                return pos - (atlasCoord - main);
+        }
+
+        return pos;
+    }
+
+    private void InvalidateTileStatesAround(Array<Vector2I> changedTiles)
+    {
+        foreach (var tile in changedTiles)
+        {
+            for (int x = -1; x <= 1; x++)
+            {
+                for (int y = -1; y <= 1; y++)
+                {
+                    var pos = tile + new Vector2I(x, y);
+
+                    var tileData = GetCellTileData(pos);
+                    if (tileData == null)
+                        continue;
+
+                    var atlasCoord = GetCellAtlasCoords(pos);
+
+                    var root = ResolveRootPosition(pos);
+
+                    if (TileStates.TryGetValue(root, out var state))
+                    {
+                        state.AtlasCoord = atlasCoord;
+                        GD.Print($"Updated atlas coord for tile state at {pos} to {atlasCoord}");
+                    }
+                }
             }
         }
     }
     #endregion
 
     #region [General Logic]
-    public void UndoDestroyTile(Vector2I position)
-    {
-        if (DestroyedTiles.Contains(position))
-        {
-            SetCell(position, OriginalSourceID);
-            DestroyedTiles.Remove(position);
-        }
-    }
+    // public void UndoDestroyTile(Vector2I position)
+    // {
+    //     if (DestroyedTiles.Contains(position))
+    //     {
+    //         SetCell(position, OriginalSourceID);
+    //         DestroyedTiles.Remove(position);
+    //     }
+    // }
     #endregion
 
     #region [Utility]
-    private void CacheZones()
-    {
-        zones.Clear();
-
-        foreach (var node in GetNodeOrNull(AreasNodePath)?.GetChildren() ?? [])
-        {
-            if (node is TileModifierZone zone)
-                zones.Add(zone);
-        }
-    }
-
     private void InitializeTileStates()
     {
         TileStates.Clear();
@@ -280,6 +314,57 @@ public partial class CustomTileMapLayer : TileMapLayer
             ApplyZones(state, worldPos);
 
             TileStates[cell] = state;
+        }
+    }
+
+    private TileState CreateTileStateFromTileData(Vector2I rootPosition, TileData tileData)
+    {
+        var state = new TileState
+        {
+            MaxHealth = tileData.GetCustomData(HealthTileDataLayerName).AsInt32()
+        };
+        state.Health = state.MaxHealth;
+
+        state.IsDestructible = tileData.GetCustomData(DestructibleTileDataLayerName).AsBool();
+        state.Material = tileData.GetCustomData(MaterialTileDataLayerName).AsString();
+        state.Strength = (float)tileData.GetCustomData(DestructionStrengthTileDataLayerName).AsDouble();
+
+        state.RootPosition = rootPosition;
+        state.BaseSourceId = GetCellSourceId(rootPosition);
+        state.AtlasCoord = GetCellAtlasCoords(rootPosition);
+
+        if (tileData.HasCustomData(TileSizeTileDataLayerName))
+        {
+            state.Size = (Vector2I)tileData.GetCustomData(TileSizeTileDataLayerName);
+            if (state.Size == Vector2I.Zero)
+                state.Size = Vector2I.One;
+        }
+        else
+        {
+            state.Size = Vector2I.One;
+        }
+
+        if (tileData.HasCustomData(DamageStagesDataLayerName))
+        {
+            var arr = (Array<int>)tileData.GetCustomData(DamageStagesDataLayerName);
+            state.DamageStages = [.. arr];
+        }
+        else
+        {
+            state.DamageStages = null;
+        }
+
+        return state;
+    }
+
+    private void CacheZones()
+    {
+        zones.Clear();
+
+        foreach (var node in GetNodeOrNull(AreasNodePath)?.GetChildren() ?? [])
+        {
+            if (node is TileModifierZone zone)
+                zones.Add(zone);
         }
     }
 
@@ -333,48 +418,6 @@ public partial class CustomTileMapLayer : TileMapLayer
         }
 
         return false;
-    }
-
-    private TileState CreateTileStateFromTileData(Vector2I pos, TileData tileData)
-    {
-        int maxHealth = 1;
-        if (tileData.HasCustomData(HealthTileDataLayerName))
-            maxHealth = tileData.GetCustomData(HealthTileDataLayerName).AsInt32();
-
-        bool isDestructible = false;
-        if (tileData.HasCustomData(DestructibleTileDataLayerName))
-            isDestructible = tileData.GetCustomData(DestructibleTileDataLayerName).AsBool();
-
-        string material = string.Empty;
-        if (tileData.HasCustomData(MaterialTileDataLayerName))
-            material = tileData.GetCustomData(MaterialTileDataLayerName).AsString();
-
-        TileDestructionMode destructionMode = TileDestructionMode.None;
-        if (tileData.HasCustomData(DestructionModeTileDataLayerName))
-            destructionMode = (TileDestructionMode)tileData.GetCustomData(DestructionModeTileDataLayerName).AsInt32();
-
-        float strength = 0f;
-        if (tileData.HasCustomData(DestructionStrengthTileDataLayerName))
-            strength = tileData.GetCustomData(DestructionStrengthTileDataLayerName).AsSingle();
-
-        int[] damageStages = [];
-        if (tileData.HasCustomData("damage_stages"))
-            damageStages = [.. (Array<int>)tileData.GetCustomData("damage_stages")];
-
-        return new TileState
-        {
-            Health = maxHealth,
-            MaxHealth = maxHealth,
-            IsDestructible = isDestructible,
-            Material = material,
-            DestructionMode = destructionMode,
-            Strength = strength,
-            DamageStages = damageStages,
-
-            BaseSourceId = GetCellSourceId(pos),
-            AtlasCoord = GetCellAtlasCoords(pos),
-            Size = Vector2I.One // extend if using multi-tile
-        };
     }
 
     public bool HasTag(TileMapManager.TileLayerTag tag)
