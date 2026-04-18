@@ -181,24 +181,23 @@ public partial class TileMapManager : Node2D
         }
     }
 
-    public void ApplyTileImpact(TileImpact impact)
+    public bool ApplyTileImpact(TileImpact impact)
     {
         var layers = LayersByTag.Where(kvp => kvp.Key.HasFlag(impact.TargetTag)).SelectMany(kvp => kvp.Value).ToArray();
         if (layers.Length == 0)
         {
             Logger.LogWarning($"No layers found with tag {impact.TargetTag}. Tile impact will not be applied.", "TileMapManager", Logger.LogTypeEnum.World);
-            return;
+            return false;
         }
 
         var layer = layers[0];
 
         if (!TryRaycastTile(impact.Source.GlobalPosition, impact.WorldPosition, layer.TileSet.GetPhysicsLayerCollisionLayer(0), out var hitPos, out var cell))
-            return;
+            return false;
 
         var tileData = layer.GetCellTileData(cell);
         if (tileData == null)
-            return;
-
+            return false;
         string material = impact.ForcedMaterial;
 
         if (string.IsNullOrEmpty(material))
@@ -207,6 +206,7 @@ public partial class TileMapManager : Node2D
         var result = layer.ApplyDamage(cell, impact.Damage);
 
         HandleImpactResult(result, impact.Source, layer, hitPos, material);
+        return result.WasHit;
     }
 
     public bool TryRaycastTile(Vector2 origin, Vector2 target, uint collisionMask, out Vector2 hitPosition, out Vector2I cell)
@@ -320,7 +320,7 @@ public partial class TileMapManager : Node2D
         return tileData != null;
     }
 
-    public Rect2I GetTilesInRect(Rect2 rect, TileLayerTag tag)
+    public Rect2I GetTilesRectInRect(Rect2 rect, TileLayerTag tag)
     {
         if (!LayersByTag.TryGetValue(tag, out var layers))
         {
@@ -336,6 +336,20 @@ public partial class TileMapManager : Node2D
         Vector2I bottomRight = new((int)Math.Ceiling(max.X), (int)Math.Ceiling(max.Y));
 
         return new Rect2I(topLeft, bottomRight - topLeft);
+    }
+
+    public Array<Vector2I> GetTilesInRect(Rect2 rect, TileLayerTag tag)
+    {
+        var tileRect = GetTilesRectInRect(rect, tag);
+        Array<Vector2I> tiles = [];
+        for (int x = tileRect.Position.X; x < tileRect.End.X; x++)
+        {
+            for (int y = tileRect.Position.Y; y < tileRect.End.Y; y++)
+            {
+                tiles.Add(new Vector2I(x, y));
+            }
+        }
+        return tiles;
     }
 
     public Vector2I GetTileAtPosition(Vector2 position, TileMapLayer layer = null)

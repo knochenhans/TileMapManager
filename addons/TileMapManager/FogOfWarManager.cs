@@ -18,7 +18,7 @@ public partial class FogOfWarManager : Node
     public Rect2I UsableArea;
 
     Array<Vector2I> revealedTiles = [];
-    Array<Vector2I> exceptions = [];
+    Dictionary<string, Array<Vector2I>> hiddenAreas = [];
     Array<Vector2I> lastNodeTiles = [];
     int initialPadding = 16;
     #endregion
@@ -40,6 +40,18 @@ public partial class FogOfWarManager : Node
         }
 
         FillUsableArea(initialPadding);
+
+        foreach (var node in GetNodeOrNull(GetPath())?.GetChildren() ?? [])
+        {
+            if (node is FogHiddenArea hiddenZone)
+            {
+                // var rect = hiddenZone.GetRect();
+                // var tileRect = TileMapManager.GetTilesRectInRect(rect, TileMapManager.TileLayerTag.Fog);
+                // AddHiddenArea(tileRect, hiddenZone.ID);
+                var coveredTiles = hiddenZone.GetCoveredTiles(TileMapManager.TileMapLayerFogOfWar);
+                AddHiddenArea(coveredTiles, hiddenZone.ID);
+            }
+        }
     }
 
     public override void _Process(double delta)
@@ -75,7 +87,38 @@ public partial class FogOfWarManager : Node
         RevealTilesAroundActor(tilePos);
     }
 
-    public void AddFogOfWarExceptions(Array<Vector2I> exceptionTiles) => exceptions.AddRange(exceptionTiles);
+    public void AddHiddenArea(System.Collections.Generic.IEnumerable<Vector2I> tiles, string id)
+    {
+        foreach (var tile in tiles)
+        {
+            if (!hiddenAreas.ContainsKey(id))
+                hiddenAreas[id] = [];
+            hiddenAreas[id].Add(tile);
+        }
+    }
+
+    public void AddHiddenArea(Rect2I tileRect, string id)
+    {
+        if (!hiddenAreas.ContainsKey(id))
+            hiddenAreas[id] = [];
+        for (int x = tileRect.Position.X; x < tileRect.End.X; x++)
+        {
+            for (int y = tileRect.Position.Y; y < tileRect.End.Y; y++)
+            {
+                hiddenAreas[id].Add(new Vector2I(x, y));
+            }
+        }
+    }
+
+    private bool IsTileHidden(Vector2I tile)
+    {
+        foreach (var tiles in hiddenAreas.Values)
+        {
+            if (tiles.Contains(tile))
+                return true;
+        }
+        return false;
+    }
 
     public void FillUsableArea(int padding = 0)
     {
@@ -87,24 +130,8 @@ public partial class FogOfWarManager : Node
         {
             for (int y = UsableArea.Position.Y - padding; y < UsableArea.End.Y + padding; y++)
             {
-                FogTilemap.SetCell(new Vector2I(x, y), 0, FogTileAtlasCoord); // Set fog tile
+                FogTilemap.SetCell(new Vector2I(x, y), 0, FogTileAtlasCoord);
             }
-        }
-    }
-
-    private void RevealTilesAroundActor(Vector2I centerTile)
-    {
-        foreach (Vector2I tilePos in GetTilesInRadius(centerTile, RevealRadius))
-        {
-            if (PermanentReveal)
-            {
-                if (revealedTiles.Contains(tilePos))
-                    continue;
-                revealedTiles.Add(tilePos);
-            }
-
-            if (!exceptions.Contains(tilePos))
-                FogTilemap.SetCellsTerrainConnect([tilePos], 0, -1); // Clear fog tile
         }
     }
 
@@ -129,49 +156,125 @@ public partial class FogOfWarManager : Node
         FillUsableArea();
     }
 
-    public void RevealRect(Rect2 area, int padding = 0) => RevealRect(TileMapManager.GetTilesInRect(area, TileMapManager.TileLayerTag.Fog), padding);
+    public void RevealHiddenArea(string id)
+    {
+        if (hiddenAreas.TryGetValue(id, out var tiles))
+        {
+            var tilesToReveal = new Array<Vector2I>();
+
+            tilesToReveal.AddRange(tiles);
+            SetTilesAsRevealed(tilesToReveal);
+        }
+    }
 
     public void RevealTileAtPosition(Vector2 position)
     {
         var tilePos = FogTilemap.LocalToMap(position);
-        RevealTile(tilePos);
+        SetTileAsRevealed(tilePos);
     }
 
-    public void RevealTile(Vector2I tilePos)
-    {
-        FogTilemap.SetCellsTerrainConnect([tilePos], 0, -1);
-        if (!revealedTiles.Contains(tilePos))
-            revealedTiles.Add(tilePos);
-    }
+    public void RevealRect(Rect2 area, int padding = 0) => RevealRect(TileMapManager.GetTilesRectInRect(area, TileMapManager.TileLayerTag.Fog), padding);
 
     public void RevealRect(Rect2I tileRect, int padding = 0)
     {
-        Array<Vector2I> tiles = [];
+        if (FogTilemap == null)
+            return;
 
-        for (int x = tileRect.Position.X - padding; x < tileRect.End.X + padding; x++)
+        const int margin = 3;
+
+        GetInnerOuterTiles(tileRect, padding, margin, out Array<Vector2I> innerTiles, out Array<Vector2I> outerTiles);
+
+        foreach (var v in innerTiles)
         {
-            for (int y = tileRect.Position.Y - padding; y < tileRect.End.Y + padding; y++)
-            {
-                var v = new Vector2I(x, y);
-                tiles.Add(v);
-                if (!revealedTiles.Contains(v))
-                    revealedTiles.Add(v);
-            }
+            FogTilemap.SetCell(v, 0, FogTileAtlasCoord);
+            SetTileRevealedState(v, true);
         }
 
-        FogTilemap.SetCellsTerrainConnect(tiles, 0, -1);
+        if (outerTiles.Count > 0)
+            SetTilesAsRevealed(outerTiles);
     }
 
-    public void RevealAll()
+    public void RevealAll() => RevealRect(UsableArea);
+
+    public void SetTilesAsRevealed(Array<Vector2I> tiles, bool revealed = true)
     {
-        for (int x = UsableArea.Position.X; x < UsableArea.End.X; x++)
+        FogTilemap.SetCellsTerrainConnect(tiles, 0, revealed ? -1 : 0);
+
+        foreach (var tilePos in tiles)
+            SetTileRevealedState(tilePos, revealed);
+    }
+
+    public void SetTileAsRevealed(Vector2I tile, bool revealed = true)
+    {
+        FogTilemap.SetCellsTerrainConnect([tile], 0, revealed ? -1 : 0);
+
+        SetTileRevealedState(tile, revealed);
+    }
+
+    #endregion
+
+    #region [Utility]
+    private void SetTileRevealedState(Vector2I tile, bool revealed = true)
+    {
+        if (revealed && !revealedTiles.Contains(tile))
+            revealedTiles.Add(tile);
+        else if (!revealed)
+            revealedTiles.Remove(tile);
+    }
+
+    private void RevealTilesAroundActor(Vector2I centerTile)
+    {
+        var tilesToReveal = new Array<Vector2I>();
+
+        foreach (Vector2I tilePos in GetTilesInRadius(centerTile, RevealRadius))
         {
-            for (int y = UsableArea.Position.Y; y < UsableArea.End.Y; y++)
+            if (PermanentReveal)
             {
-                var tilePos = new Vector2I(x, y);
-                if (!revealedTiles.Contains(tilePos))
-                    revealedTiles.Add(tilePos);
-                FogTilemap.SetCellsTerrainConnect([tilePos], 0, -1);
+                if (revealedTiles.Contains(tilePos))
+                    continue;
+
+                if (IsTileHidden(tilePos))
+                    continue;
+
+                revealedTiles.Add(tilePos);
+                tilesToReveal.Add(tilePos);
+            }
+
+        }
+
+        SetTilesAsRevealed(tilesToReveal);
+    }
+
+    private void GetInnerOuterTiles(Rect2I tileRect, int padding, int margin, out Array<Vector2I> innerTiles, out Array<Vector2I> outerTiles)
+    {
+        innerTiles = [];
+        outerTiles = [];
+
+        var expandedPos = tileRect.Position - new Vector2I(padding, padding);
+        var expandedSize = tileRect.Size + new Vector2I(padding * 2, padding * 2);
+        var expandedRect = new Rect2I(expandedPos, expandedSize);
+
+        var innerPos = expandedRect.Position + new Vector2I(margin, margin);
+        var innerSize = expandedRect.Size - new Vector2I(margin * 2, margin * 2);
+        bool hasInner = innerSize.X > 0 && innerSize.Y > 0;
+        var innerRect = hasInner ? new Rect2I(innerPos, innerSize) : new Rect2I();
+
+        for (int x = expandedRect.Position.X; x < expandedRect.End.X; x++)
+        {
+            for (int y = expandedRect.Position.Y; y < expandedRect.End.Y; y++)
+            {
+                var v = new Vector2I(x, y);
+
+                if (hasInner &&
+                    x >= innerRect.Position.X && x < innerRect.End.X &&
+                    y >= innerRect.Position.Y && y < innerRect.End.Y)
+                {
+                    innerTiles.Add(v);
+                }
+                else
+                {
+                    outerTiles.Add(v);
+                }
             }
         }
     }
@@ -193,11 +296,10 @@ public partial class FogOfWarManager : Node
         var arr = new Array<Vector2I>();
         arr.AddRange(SaveFogState());
 
-        var data = new SaveData
+        return new SaveData
         {
             ["RevealedTiles"] = (Variant)arr
         };
-        return data;
     }
 
     public System.Collections.Generic.IEnumerable<Vector2I> SaveFogState() => revealedTiles;
@@ -207,7 +309,7 @@ public partial class FogOfWarManager : Node
         ResetFog();
 
         foreach (var tile in savedTiles)
-            RevealTile(tile);
+            SetTileAsRevealed(tile);
     }
     #endregion
 }

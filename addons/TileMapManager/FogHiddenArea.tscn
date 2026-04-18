@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://wpen3rqvd01i"]
+
+[ext_resource type="Script" uid="uid://chmwu1xhkvxvi" path="res://addons/TileMapManager/FogHiddenArea.cs" id="1_15p5g"]
+
+[node name="FogHiddenArea" type="Area2D" unique_id=377941694]
+monitoring = false
+monitorable = false
+script = ExtResource("1_15p5g")
+ID = "1"
