@@ -110,29 +110,25 @@ public partial class FogOfWarManager : Node
         }
     }
 
-    private bool IsTileHidden(Vector2I tile)
-    {
-        foreach (var tiles in hiddenAreas.Values)
-        {
-            if (tiles.Contains(tile))
-                return true;
-        }
-        return false;
-    }
-
     public void FillUsableArea(int padding = 0)
     {
         if (FogTilemap == null)
             return;
 
-        // Fill the usable area with fog
+        var tilesToFill = new Array<Vector2I>();
+
         for (int x = UsableArea.Position.X - padding; x < UsableArea.End.X + padding; x++)
         {
             for (int y = UsableArea.Position.Y - padding; y < UsableArea.End.Y + padding; y++)
             {
+                var tilePos = new Vector2I(x, y);
+                tilesToFill.Add(tilePos);
                 FogTilemap.SetCell(new Vector2I(x, y), 0, FogTileAtlasCoord);
             }
         }
+
+        //TODO: Using SetCell is faster here for now
+        // SetRectRevealedState(UsableArea, padding, false);
     }
 
     public static System.Collections.Generic.IEnumerable<Vector2I> GetTilesInRadius(Vector2I center, int radius)
@@ -167,15 +163,9 @@ public partial class FogOfWarManager : Node
         }
     }
 
-    public void RevealTileAtPosition(Vector2 position)
-    {
-        var tilePos = FogTilemap.LocalToMap(position);
-        SetTileAsRevealed(tilePos);
-    }
+    public void SetRectAsRevealed(Rect2 area, int padding = 0, bool revealed = true) => SetRectAsRevealed(TileMapManager.GetTilesRectInRect(area, TileMapManager.TileLayerTag.Fog), padding, revealed);
 
-    public void RevealRect(Rect2 area, int padding = 0) => RevealRect(TileMapManager.GetTilesRectInRect(area, TileMapManager.TileLayerTag.Fog), padding);
-
-    public void RevealRect(Rect2I tileRect, int padding = 0)
+    public void SetRectAsRevealed(Rect2I tileRect, int padding = 0, bool revealed = true)
     {
         if (FogTilemap == null)
             return;
@@ -187,14 +177,14 @@ public partial class FogOfWarManager : Node
         foreach (var v in innerTiles)
         {
             FogTilemap.SetCell(v, 0, FogTileAtlasCoord);
-            SetTileRevealedState(v, true);
+            SetTileRevealedState(v, revealed);
         }
 
         if (outerTiles.Count > 0)
-            SetTilesAsRevealed(outerTiles);
+            SetTilesAsRevealed(outerTiles, revealed);
     }
 
-    public void RevealAll() => RevealRect(UsableArea);
+    public void RevealAll() => SetRectAsRevealed(UsableArea);
 
     public void SetTilesAsRevealed(Array<Vector2I> tiles, bool revealed = true)
     {
@@ -214,6 +204,16 @@ public partial class FogOfWarManager : Node
     #endregion
 
     #region [Utility]
+    private bool IsTileHidden(Vector2I tile)
+    {
+        foreach (var tiles in hiddenAreas.Values)
+        {
+            if (tiles.Contains(tile))
+                return true;
+        }
+        return false;
+    }
+
     private void SetTileRevealedState(Vector2I tile, bool revealed = true)
     {
         if (revealed && !revealedTiles.Contains(tile))
