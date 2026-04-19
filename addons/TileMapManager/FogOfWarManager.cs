@@ -45,9 +45,6 @@ public partial class FogOfWarManager : Node
         {
             if (node is FogHiddenArea hiddenZone)
             {
-                // var rect = hiddenZone.GetRect();
-                // var tileRect = TileMapManager.GetTilesRectInRect(rect, TileMapManager.TileLayerTag.Fog);
-                // AddHiddenArea(tileRect, hiddenZone.ID);
                 var coveredTiles = hiddenZone.GetCoveredTiles(TileMapManager.TileMapLayerFogOfWar);
                 AddHiddenArea(coveredTiles, hiddenZone.ID);
             }

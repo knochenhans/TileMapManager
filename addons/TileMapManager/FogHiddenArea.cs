@@ -5,24 +5,8 @@ public partial class FogHiddenArea : Area2D
 {
     [Export] public string ID;
 
-    CollisionShape2D CollisionShape => GetNode<CollisionShape2D>("CollisionShape2D");
+    CollisionShape2D CollisionShape => GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
     CollisionPolygon2D CollisionPolygon => GetNodeOrNull<CollisionPolygon2D>("CollisionPolygon2D");
-
-    // public Rect2 GetRect()
-    // {
-    //     if (CollisionShape == null || CollisionShape.Shape == null)
-    //         return new Rect2();
-
-    //     var shape = CollisionShape.Shape;
-    //     if (shape is RectangleShape2D rectShape)
-    //     {
-    //         var extents = rectShape.Size / 2f;
-    //         var position = CollisionShape.Position - extents;
-    //         return new Rect2(position, extents * 2);
-    //     }
-
-    //     return new Rect2();
-    // }
 
     public System.Collections.Generic.IEnumerable<Vector2I> GetCoveredTiles(TileMapLayer tileMap)
     {
