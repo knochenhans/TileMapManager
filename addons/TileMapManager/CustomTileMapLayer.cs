@@ -81,7 +81,7 @@ public partial class CustomTileMapLayer : TileMapLayer
 
     //TODO: Use physics to detect tile hits, get RID to handle big tiles better (atlas)
 
-    #region [Events]
+    #region [Public Methods]
     public TileImpactResult ApplyDamage(Vector2 position, int damage)
     {
         Vector2I tilePosition = LocalToMap(position);
@@ -286,20 +286,108 @@ public partial class CustomTileMapLayer : TileMapLayer
             }
         }
     }
-    #endregion
 
-    #region [General Logic]
-    // public void UndoDestroyTile(Vector2I position)
-    // {
-    //     if (DestroyedTiles.Contains(position))
-    //     {
-    //         SetCell(position, OriginalSourceID);
-    //         DestroyedTiles.Remove(position);
-    //     }
-    // }
+    public System.Collections.Generic.IEnumerable<Vector2I> GetCoveredTiles(Node2D collisionNode, Vector2 worldPosition)
+    {
+        if (collisionNode is CollisionShape2D collisionShape && collisionShape?.Shape is RectangleShape2D rectShape)
+        {
+            foreach (var tile in GetCoveredTilesFromRectangle(worldPosition, rectShape))
+                yield return tile;
+        }
+        else if (collisionNode is CollisionPolygon2D collisionPolygon && collisionPolygon?.Polygon.Length >= 3)
+        {
+            foreach (var tile in GetCoveredTilesFromPolygon(collisionPolygon))
+                yield return tile;
+        }
+    }
     #endregion
 
     #region [Utility]
+    private System.Collections.Generic.IEnumerable<Vector2I> GetCoveredTilesFromPolygon(CollisionPolygon2D collisionPolygon)
+    {
+        if (collisionPolygon?.Polygon.Length >= 3)
+        {
+            var globalPoints = new System.Collections.Generic.List<Vector2>();
+
+            foreach (var p in collisionPolygon.Polygon)
+                globalPoints.Add(collisionPolygon.ToGlobal(p));
+
+            Rect2 bounds = GetBounds(globalPoints);
+
+            Vector2I start = LocalToMap(ToLocal(bounds.Position));
+            Vector2I end = LocalToMap(ToLocal(bounds.End));
+
+            for (int x = start.X; x <= end.X; x++)
+            {
+                for (int y = start.Y; y <= end.Y; y++)
+                {
+                    var tile = new Vector2I(x, y);
+                    Vector2 worldPos = ToGlobal(MapToLocal(tile));
+
+                    if (PointInPolygon(worldPos, globalPoints))
+                        yield return tile;
+                }
+            }
+        }
+    }
+
+    private System.Collections.Generic.IEnumerable<Vector2I> GetCoveredTilesFromRectangle(Vector2 worldPosition, RectangleShape2D rectShape)
+    {
+        var extents = rectShape.Size / 2f;
+
+        Vector2 topLeft = worldPosition - extents;
+        Vector2 bottomRight = worldPosition + extents;
+
+        Vector2I start = LocalToMap(ToLocal(topLeft));
+        Vector2I end = LocalToMap(ToLocal(bottomRight));
+
+        for (int x = start.X; x <= end.X; x++)
+        {
+            for (int y = start.Y; y <= end.Y; y++)
+            {
+                yield return new Vector2I(x, y);
+            }
+        }
+    }
+
+    private Rect2 GetBounds(System.Collections.Generic.List<Vector2> points)
+    {
+        float minX = points[0].X;
+        float maxX = points[0].X;
+        float minY = points[0].Y;
+        float maxY = points[0].Y;
+
+        foreach (var p in points)
+        {
+            minX = Mathf.Min(minX, p.X);
+            maxX = Mathf.Max(maxX, p.X);
+            minY = Mathf.Min(minY, p.Y);
+            maxY = Mathf.Max(maxY, p.Y);
+        }
+
+        return new Rect2(new Vector2(minX, minY), new Vector2(maxX - minX, maxY - minY));
+    }
+
+    private bool PointInPolygon(Vector2 point, System.Collections.Generic.List<Vector2> polygon)
+    {
+        bool inside = false;
+
+        for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
+        {
+            var pi = polygon[i];
+            var pj = polygon[j];
+
+            bool intersect =
+                ((pi.Y > point.Y) != (pj.Y > point.Y)) &&
+                (point.X < ((pj.X - pi.X) * (point.Y - pi.Y) / (pj.Y - pi.Y + Mathf.Epsilon)) + pi.X);
+
+            if (intersect)
+                inside = !inside;
+        }
+
+        return inside;
+    }
+
     private void InitializeTileStates()
     {
         TileStates.Clear();

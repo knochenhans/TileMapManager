@@ -8,7 +8,7 @@ using SaveData = Godot.Collections.Dictionary<string, Godot.Variant>;
 public partial class FogOfWarManager : Node
 {
     #region [Fields and Properties]
-    [Export] public TileMapLayer FogTilemap;
+    [Export] public CustomTileMapLayer FogTilemap;
     [Export] public int RevealRadius = 4;
     [Export] public bool PermanentReveal = true;
     [Export] public Vector2I FogTileAtlasCoord = new(9, 2);
@@ -45,7 +45,7 @@ public partial class FogOfWarManager : Node
         {
             if (node is FogHiddenArea hiddenZone)
             {
-                var coveredTiles = hiddenZone.GetCoveredTiles(TileMapManager.TileMapLayerFogOfWar);
+                var coveredTiles = FogTilemap.GetCoveredTiles(hiddenZone.GetCollisionNode(), hiddenZone.GlobalPosition);
                 AddHiddenArea(coveredTiles, hiddenZone.ID);
             }
         }
@@ -159,6 +159,8 @@ public partial class FogOfWarManager : Node
             SetTilesAsRevealed(tilesToReveal);
         }
     }
+
+    public void UnlockHiddenArea(string id) => hiddenAreas.Remove(id);
 
     public void SetRectAsRevealed(Rect2 area, int padding = 0, bool revealed = true) => SetRectAsRevealed(TileMapManager.GetTilesRectInRect(area, TileMapManager.TileLayerTag.Fog), padding, revealed);
 
