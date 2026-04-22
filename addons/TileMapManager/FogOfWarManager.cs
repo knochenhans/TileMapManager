@@ -221,27 +221,150 @@ public partial class FogOfWarManager : Node
             revealedTiles.Remove(tile);
     }
 
+    private Vector2I FogToWallTile(Vector2I fogTile)
+    {
+        Vector2 worldPos = FogTilemap.ToGlobal(FogTilemap.MapToLocal(fogTile));
+        return TileMapManager.TileMapLayerWalls.LocalToMap(worldPos);
+    }
+
     private void RevealTilesAroundActor(Vector2I centerTile)
     {
+        var visibleTiles = ComputeFOV(centerTile, RevealRadius);
+
         var tilesToReveal = new Array<Vector2I>();
 
-        foreach (Vector2I tilePos in GetTilesInRadius(centerTile, RevealRadius))
+        foreach (var tilePos in visibleTiles)
         {
+            if (IsTileHidden(tilePos))
+                continue;
+
+            if (PermanentReveal && revealedTiles.Contains(tilePos))
+                continue;
+
+            tilesToReveal.Add(tilePos);
+
             if (PermanentReveal)
-            {
-                if (revealedTiles.Contains(tilePos))
-                    continue;
-
-                if (IsTileHidden(tilePos))
-                    continue;
-
                 revealedTiles.Add(tilePos);
-                tilesToReveal.Add(tilePos);
-            }
-
         }
 
         SetTilesAsRevealed(tilesToReveal);
+    }
+
+    private System.Collections.Generic.HashSet<Vector2I> ComputeFOV(Vector2I origin, int radius)
+    {
+        var visible = new System.Collections.Generic.HashSet<Vector2I>
+    {
+        origin
+    };
+
+        for (int octant = 0; octant < 8; octant++)
+        {
+            CastLight(origin, 1, 1.0f, 0.0f, radius, GetTransformForOctant(octant), visible);
+        }
+
+        return visible;
+    }
+
+    private void CastLight(Vector2I origin, int row, float startSlope, float endSlope, int radius, (int xx, int xy, int yx, int yy) transform, System.Collections.Generic.HashSet<Vector2I> visible)
+    {
+        if (startSlope < endSlope)
+            return;
+
+        float radiusSquared = radius * radius;
+
+        for (int i = row; i <= radius; i++)
+        {
+            bool blocked = false;
+            float newStartSlope = startSlope;
+
+            for (int dx = -i; dx <= 0; dx++)
+            {
+                int dy = -i;
+
+                float lSlope = (dx - 0.5f) / (dy + 0.5f);
+                float rSlope = (dx + 0.5f) / (dy - 0.5f);
+
+                if (rSlope > startSlope)
+                    continue;
+
+                if (lSlope < endSlope)
+                    break;
+
+                int mapX = origin.X + dx * transform.xx + dy * transform.xy;
+                int mapY = origin.Y + dx * transform.yx + dy * transform.yy;
+
+                var pos = new Vector2I(mapX, mapY);
+
+                float distanceSquared = dx * dx + dy * dy;
+                if (distanceSquared <= radiusSquared)
+                    visible.Add(pos);
+
+                if (blocked)
+                {
+                    if (IsBlockingVision(pos))
+                    {
+                        newStartSlope = rSlope;
+                        continue;
+                    }
+                    else
+                    {
+                        blocked = false;
+                        startSlope = newStartSlope;
+                    }
+                }
+                else
+                {
+                    if (IsBlockingVision(pos) && i < radius)
+                    {
+                        blocked = true;
+
+                        CastLight(origin, i + 1, startSlope, lSlope, radius, transform, visible);
+
+                        newStartSlope = rSlope;
+                    }
+                }
+            }
+
+            if (blocked)
+                break;
+        }
+    }
+
+    private (int xx, int xy, int yx, int yy) GetTransformForOctant(int octant)
+    {
+        return octant switch
+        {
+            0 => (1, 0, 0, 1),
+            1 => (0, 1, 1, 0),
+            2 => (0, -1, 1, 0),
+            3 => (-1, 0, 0, 1),
+            4 => (-1, 0, 0, -1),
+            5 => (0, -1, -1, 0),
+            6 => (0, 1, -1, 0),
+            7 => (1, 0, 0, -1),
+            _ => (1, 0, 0, 1)
+        };
+    }
+
+    private bool IsBlockingVision(Vector2I fogTile)
+    {
+        if (!UsableArea.HasPoint(fogTile))
+            return true;
+
+        var wallTile = FogToWallTile(fogTile);
+
+        int sourceId = TileMapManager.TileMapLayerWalls.GetCellSourceId(wallTile);
+        if (sourceId < 0)
+            return false;
+
+        var tileData = TileMapManager.TileMapLayerWalls.GetCellTileData(wallTile);
+        if (tileData == null)
+            return false;
+
+        // if (tileData.HasCustomData("blocks_vision"))
+        //     return tileData.GetCustomData("blocks_vision").AsBool();
+
+        return true;
     }
 
     private void GetInnerOuterTiles(Rect2I tileRect, int padding, int margin, out Array<Vector2I> innerTiles, out Array<Vector2I> outerTiles)
