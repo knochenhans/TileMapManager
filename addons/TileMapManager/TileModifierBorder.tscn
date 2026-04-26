@@ -1,11 +1,19 @@
 [gd_scene format=3 uid="uid://lphc7cadv8p"]
 
 [ext_resource type="Script" uid="uid://liv0tphwbq0q" path="res://addons/TileMapManager/TileModifierZone.cs" id="1_2m081"]
+[ext_resource type="Script" uid="uid://c4u1dk52m2hma" path="res://addons/TileMapManager/TileModifierResource.cs" id="2_vivc1"]
+[ext_resource type="Script" uid="uid://dxcndcb7m8evx" path="res://addons/TileMapManager/DestructibleModifierResource.cs" id="3_vivc1"]
+
+[sub_resource type="Resource" id="Resource_jo8m2"]
+script = ExtResource("3_vivc1")
+OverrideDestructible = true
+metadata/_custom_type_script = "uid://dxcndcb7m8evx"
 
 [sub_resource type="WorldBoundaryShape2D" id="WorldBoundaryShape2D_2m081"]
 
 [node name="TileModifierBorder" type="Area2D" unique_id=466219154]
 script = ExtResource("1_2m081")
+Modifiers = Array[ExtResource("2_vivc1")]([SubResource("Resource_jo8m2")])
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=599269615]
 shape = SubResource("WorldBoundaryShape2D_2m081")

@@ -19,14 +19,14 @@ public partial class TileMapManager : Node2D
         Fog = 1 << 4,
     }
 
-    Dictionary<TileLayerTag, Array<CustomTileMapLayer>> LayersByTag = [];
+    Dictionary<TileLayerTag, Array<GeneralTileMapLayer>> LayersByTag = [];
 
-    [Export] public Array<CustomTileMapLayer> TileMapLayerGround = [];
-    [Export] public CustomTileMapLayer TileMapLayerUsableArea;
-    [Export] public CustomTileMapLayer TileMapLayerFogOfWar;
-    [Export] public CustomTileMapLayer TileMapLayerObjects;
-    [Export] public CustomTileMapLayer TileMapLayerPaths;
-    [Export] public CustomTileMapLayer TileMapLayerWalls;
+    [Export] public Array<GeneralTileMapLayer> TileMapLayerGround = [];
+    [Export] public GeneralTileMapLayer TileMapLayerUsableArea;
+    [Export] public FogOfWarTileMap TileMapLayerFogOfWar;
+    [Export] public GeneralTileMapLayer TileMapLayerObjects;
+    [Export] public GeneralTileMapLayer TileMapLayerPaths;
+    [Export] public GeneralTileMapLayer TileMapLayerWalls;
     [Export] public string MaterialTileDataLayerName = "material";
     [Export] public NavigationRegion2D NavigationRegion;
 
@@ -54,15 +54,15 @@ public partial class TileMapManager : Node2D
             return;
         }
 
-        CustomTileMapLayer[] layers;
+        GeneralTileMapLayer[] layers;
         try
         {
-            layers = [.. GetChildren().Cast<CustomTileMapLayer>()];
+            layers = [.. GetChildren().Cast<GeneralTileMapLayer>()];
         }
         catch (InvalidCastException)
         {
             Logger.LogWarning("One or more children of TileMapManager could not be cast to CustomTileMapLayer; filtering valid children instead.", "TileMapManager", Logger.LogTypeEnum.World);
-            layers = [.. GetChildren().OfType<CustomTileMapLayer>()];
+            layers = [.. GetChildren().OfType<GeneralTileMapLayer>()];
         }
 
         Array<TileMapLayer> topTileMapLayers = [];

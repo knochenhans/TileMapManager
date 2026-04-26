@@ -8,7 +8,7 @@ using SaveData = Godot.Collections.Dictionary<string, Godot.Variant>;
 public partial class FogOfWarManager : Node
 {
     #region [Fields and Properties]
-    [Export] public CustomTileMapLayer FogTilemap;
+    [Export] public FogOfWarTileMap FogTileMap;
     [Export] public int RevealRadius = 4;
     [Export] public bool PermanentReveal = true;
     [Export] public Vector2I FogTileAtlasCoord = new(9, 2);
@@ -26,14 +26,14 @@ public partial class FogOfWarManager : Node
     #region [Godot]
     public override void _Ready()
     {
-        var fogTileSize = FogTilemap.TileSet.TileSize;
+        var fogTileSize = FogTileMap.TileSet.TileSize;
         var defaultTileSize = TileMapManager.DefaultTileSize;
         var factor = new Vector2I(defaultTileSize.X / fogTileSize.X, defaultTileSize.Y / fogTileSize.Y);
 
         var usedRect = TileMapManager.GetUsedRect();
         UsableArea = new Rect2I(usedRect.Position * factor, usedRect.Size * factor);
 
-        if (FogTilemap == null)
+        if (FogTileMap == null)
         {
             LogError("FogOfWarManager: FogTilemap not assigned!", LogTypeEnum.Framework);
             return;
@@ -41,19 +41,19 @@ public partial class FogOfWarManager : Node
 
         FillUsableArea(initialPadding);
 
-        foreach (var node in FogTilemap.TileModifierZones)
-        {
-            if (node is TileModifierZone hiddenZone && hiddenZone.FOWHide)
-            {
-                var coveredTiles = FogTilemap.GetCoveredTiles(hiddenZone.GetCollisionNode(), hiddenZone.GlobalPosition);
-                AddHiddenArea(coveredTiles, hiddenZone.ID);
-            }
-        }
+        // foreach (var node in FogTilemap.TileModifierZones)
+        // {
+        //     if (node is TileModifierZone hiddenZone && hiddenZone.FOWHide)
+        //     {
+        //         var coveredTiles = FogTilemap.GetCoveredTiles(hiddenZone.GetCollisionNode(), hiddenZone.GlobalPosition);
+        //         AddHiddenArea(coveredTiles, hiddenZone.ID);
+        //     }
+        // }
     }
 
     public override void _Process(double delta)
     {
-        if (FogTilemap == null || ActorNodes == null)
+        if (FogTileMap == null || ActorNodes == null)
             return;
 
         for (int i = 0; i < ActorNodes.Count; i++)
@@ -62,7 +62,7 @@ public partial class FogOfWarManager : Node
             if (node == null)
                 continue;
             var pos = node.GlobalPosition;
-            var currentTile = FogTilemap.LocalToMap(new Vector2I((int)pos.X, (int)pos.Y));
+            var currentTile = FogTileMap.LocalToMap(new Vector2I((int)pos.X, (int)pos.Y));
             if (i >= lastNodeTiles.Count || !currentTile.Equals(lastNodeTiles[i]))
             {
                 if (i >= lastNodeTiles.Count)
@@ -79,7 +79,7 @@ public partial class FogOfWarManager : Node
     public void RegisterActor(StageNode actorNode)
     {
         ActorNodes.Add(actorNode);
-        var tilePos = FogTilemap.LocalToMap(actorNode.GlobalPosition);
+        var tilePos = FogTileMap.LocalToMap(actorNode.GlobalPosition);
         lastNodeTiles.Add(tilePos);
         RevealTilesAroundActor(tilePos);
     }
@@ -107,9 +107,15 @@ public partial class FogOfWarManager : Node
         }
     }
 
+    public void AddHiddenArea(Node2D collisionNode, Vector2 globalPosition, string id)
+    {
+        var coveredTiles = FogTileMap.GetCoveredTiles(collisionNode, globalPosition);
+        AddHiddenArea(coveredTiles, id);
+    }
+
     public void FillUsableArea(int padding = 0)
     {
-        if (FogTilemap == null)
+        if (FogTileMap == null)
             return;
 
         var tilesToFill = new Array<Vector2I>();
@@ -120,7 +126,7 @@ public partial class FogOfWarManager : Node
             {
                 var tilePos = new Vector2I(x, y);
                 tilesToFill.Add(tilePos);
-                FogTilemap.SetCell(new Vector2I(x, y), 0, FogTileAtlasCoord);
+                FogTileMap.SetCell(new Vector2I(x, y), 0, FogTileAtlasCoord);
             }
         }
 
@@ -166,7 +172,7 @@ public partial class FogOfWarManager : Node
 
     public void SetRectAsRevealed(Rect2I tileRect, int padding = 0, bool revealed = true)
     {
-        if (FogTilemap == null)
+        if (FogTileMap == null)
             return;
 
         const int margin = 3;
@@ -175,7 +181,7 @@ public partial class FogOfWarManager : Node
 
         foreach (var v in innerTiles)
         {
-            FogTilemap.SetCell(v, 0, FogTileAtlasCoord);
+            FogTileMap.SetCell(v, 0, FogTileAtlasCoord);
             SetTileRevealedState(v, revealed);
         }
 
@@ -187,7 +193,7 @@ public partial class FogOfWarManager : Node
 
     public void SetTilesAsRevealed(Array<Vector2I> tiles, bool revealed = true)
     {
-        FogTilemap.SetCellsTerrainConnect(tiles, 0, revealed ? -1 : 0);
+        FogTileMap.SetCellsTerrainConnect(tiles, 0, revealed ? -1 : 0);
 
         foreach (var tilePos in tiles)
             SetTileRevealedState(tilePos, revealed);
@@ -195,7 +201,7 @@ public partial class FogOfWarManager : Node
 
     public void SetTileAsRevealed(Vector2I tile, bool revealed = true)
     {
-        FogTilemap.SetCellsTerrainConnect([tile], 0, revealed ? -1 : 0);
+        FogTileMap.SetCellsTerrainConnect([tile], 0, revealed ? -1 : 0);
 
         SetTileRevealedState(tile, revealed);
     }
@@ -223,7 +229,7 @@ public partial class FogOfWarManager : Node
 
     private Vector2I FogToWallTile(Vector2I fogTile)
     {
-        Vector2 worldPos = FogTilemap.ToGlobal(FogTilemap.MapToLocal(fogTile));
+        Vector2 worldPos = FogTileMap.ToGlobal(FogTileMap.MapToLocal(fogTile));
         return TileMapManager.TileMapLayerWalls.LocalToMap(worldPos);
     }
 
@@ -290,12 +296,12 @@ public partial class FogOfWarManager : Node
                 if (lSlope < endSlope)
                     break;
 
-                int mapX = origin.X + dx * transform.xx + dy * transform.xy;
-                int mapY = origin.Y + dx * transform.yx + dy * transform.yy;
+                int mapX = origin.X + (dx * transform.xx) + (dy * transform.xy);
+                int mapY = origin.Y + (dx * transform.yx) + (dy * transform.yy);
 
                 var pos = new Vector2I(mapX, mapY);
 
-                float distanceSquared = dx * dx + dy * dy;
+                float distanceSquared = (dx * dx) + (dy * dy);
                 if (distanceSquared <= radiusSquared)
                     visible.Add(pos);
 
