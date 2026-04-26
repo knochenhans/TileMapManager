@@ -26,7 +26,7 @@ public partial class CustomTileMapLayer : TileMapLayer
     Array<Vector2I> DestroyedTiles = [];
 
     Dictionary<Vector2I, TileState> TileStates = [];
-    Array<TileModifierZone> zones = [];
+    public Array<TileModifierZone> TileModifierZones = [];
 
     public Array<TileMapLayer> TopTileMapLayers;
 
@@ -450,20 +450,20 @@ public partial class CustomTileMapLayer : TileMapLayer
 
     private void CacheZones()
     {
-        zones.Clear();
+        TileModifierZones.Clear();
 
         foreach (var node in GetNodeOrNull(AreasNodePath)?.GetChildren() ?? [])
         {
             if (node is TileModifierZone zone)
-                zones.Add(zone);
+                TileModifierZones.Add(zone);
         }
     }
 
     private void ApplyZones(TileState state, Vector2 worldPosition)
     {
-        foreach (var zone in zones)
+        foreach (var zone in TileModifierZones)
         {
-            if (!IsPointInsideZone(zone, worldPosition))
+            if (IsPointAllowed(zone, worldPosition))
                 continue;
 
             if (zone.OverrideDestructible)
@@ -477,7 +477,7 @@ public partial class CustomTileMapLayer : TileMapLayer
         }
     }
 
-    private bool IsPointInsideZone(TileModifierZone zone, Vector2 worldPosition)
+    private bool IsPointAllowed(TileModifierZone zone, Vector2 worldPosition)
     {
         foreach (var child in zone.GetChildren())
         {
@@ -486,25 +486,36 @@ public partial class CustomTileMapLayer : TileMapLayer
                 var shape = shapeNode.Shape;
 
                 // transform world → local space of shape
-                Transform2D globalToLocal = shapeNode.GlobalTransform.AffineInverse();
-                Vector2 localPoint = globalToLocal * worldPosition;
+                Transform2D? globalToLocal = shapeNode.GlobalTransform.AffineInverse();
+                Vector2? localPoint = globalToLocal.Value * worldPosition;
 
                 if (shape is RectangleShape2D rect)
                 {
                     var extents = rect.Size * 0.5f;
-                    if (Mathf.Abs(localPoint.X) <= extents.X &&
-                        Mathf.Abs(localPoint.Y) <= extents.Y)
+                    if (Mathf.Abs(localPoint.Value.X) <= extents.X &&
+                        Mathf.Abs(localPoint.Value.Y) <= extents.Y)
                     {
                         return true;
                     }
                 }
                 else if (shape is CircleShape2D circle)
                 {
-                    if (localPoint.Length() <= circle.Radius)
+                    if (localPoint.Value.Length() <= circle.Radius)
                         return true;
                 }
+                else if (shape is WorldBoundaryShape2D boundary)
+                {
+                    // Transform world → shape local space (this handles ALL rotation correctly)
+                    localPoint = shapeNode.ToLocal(worldPosition);
 
-                // Extend here if you use more shapes
+                    Vector2 normal = boundary.Normal;
+                    float distance = boundary.Distance;
+
+                    float d = normal.Dot(localPoint.Value);
+
+                    if (d <= distance)
+                        return true;
+                }
             }
         }
 

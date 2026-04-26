@@ -41,9 +41,9 @@ public partial class FogOfWarManager : Node
 
         FillUsableArea(initialPadding);
 
-        foreach (var node in GetNodeOrNull(GetPath())?.GetChildren() ?? [])
+        foreach (var node in FogTilemap.TileModifierZones)
         {
-            if (node is FogHiddenArea hiddenZone)
+            if (node is TileModifierZone hiddenZone && hiddenZone.FOWHide)
             {
                 var coveredTiles = FogTilemap.GetCoveredTiles(hiddenZone.GetCollisionNode(), hiddenZone.GlobalPosition);
                 AddHiddenArea(coveredTiles, hiddenZone.ID);

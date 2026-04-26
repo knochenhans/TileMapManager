@@ -2,12 +2,7 @@
 
 [ext_resource type="Script" uid="uid://liv0tphwbq0q" path="res://addons/TileMapManager/TileModifierZone.cs" id="1_ct47s"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_7xe4b"]
-size = Vector2(225, 269)
-
 [node name="TileModifierZone" type="Area2D" unique_id=466219154]
 script = ExtResource("1_ct47s")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=599269615]
-position = Vector2(-142.5, 142.5)
-shape = SubResource("RectangleShape2D_7xe4b")
