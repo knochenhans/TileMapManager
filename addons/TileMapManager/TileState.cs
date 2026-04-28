@@ -9,6 +9,8 @@ public partial class TileState : GodotObject
     public string Material;
     public float Strength;
 
+    public int Energy;
+
     public int BaseSourceId;
     public int CurrentSourceId = -1;
     public Vector2I RootPosition;

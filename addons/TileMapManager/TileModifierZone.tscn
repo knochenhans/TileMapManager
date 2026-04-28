@@ -4,5 +4,3 @@
 
 [node name="TileModifierZone" type="Area2D" unique_id=466219154]
 script = ExtResource("1_ct47s")
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=599269615]

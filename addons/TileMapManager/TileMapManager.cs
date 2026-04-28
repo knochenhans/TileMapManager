@@ -320,14 +320,27 @@ public partial class TileMapManager : Node2D
         return tileData != null;
     }
 
-    public Rect2I GetTilesRectInRect(Rect2 rect, TileLayerTag tag)
+    public Array<GeneralTileMapLayer> GetLayersByTag(TileLayerTag tag, int count = -1)
     {
         if (!LayersByTag.TryGetValue(tag, out var layers))
         {
-            Logger.LogWarning($"No layers found with tag {tag}. Cannot get tiles in rect.", "TileMapManager", Logger.LogTypeEnum.World);
-            return new Rect2I();
+            Logger.LogWarning($"No layers found with tag {tag}. Returning empty array.", "TileMapManager", Logger.LogTypeEnum.World);
+            return [];
         }
-        var layer = layers[0];
+
+        if (count > 0 && layers.Count > count)
+        {
+            var result = new Array<GeneralTileMapLayer>();
+            for (int i = 0; i < count; i++)
+                result.Add(layers[i]);
+            return result;
+        }
+        return layers;
+    }
+
+    public Rect2I GetTilesRectInRect(Rect2 rect, TileLayerTag tag)
+    {
+        var layer = GetLayersByTag(tag, 1).FirstOrDefault();
         var tileSize = GetTileSize(layer);
         var min = rect.Position / tileSize;
         var max = (rect.Position + rect.Size) / tileSize;
@@ -345,9 +358,7 @@ public partial class TileMapManager : Node2D
         for (int x = tileRect.Position.X; x < tileRect.End.X; x++)
         {
             for (int y = tileRect.Position.Y; y < tileRect.End.Y; y++)
-            {
                 tiles.Add(new Vector2I(x, y));
-            }
         }
         return tiles;
     }
@@ -443,7 +454,8 @@ public partial class TileMapManager : Node2D
         if (tag == TileLayerTag.None)
             return GetTopmostTileData(cell);
 
-        if (!LayersByTag.TryGetValue(tag, out var layers))
+        var layers = GetLayersByTag(tag, 1);
+        if (layers == null || layers.Count == 0)
             return null;
 
         // assume order = top to bottom
@@ -485,7 +497,8 @@ public partial class TileMapManager : Node2D
 
     public TileMapLayer GetTopLayerByTag(Vector2I cell, TileLayerTag tag)
     {
-        if (!LayersByTag.TryGetValue(tag, out var layers))
+        var layers = GetLayersByTag(tag, 1);
+        if (layers == null || layers.Count == 0)
             return null;
 
         // assume order = top to bottom

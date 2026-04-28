@@ -10,7 +10,7 @@ public partial class FogOfWarTileMap : CustomTileMapLayer
 
             foreach (var zone in TileModifierZones)
             {
-                if (IsPointAllowed(zone, worldPosition))
+                if (IsPointInZone(zone, worldPosition))
                     continue;
 
                 foreach (var modifier in zone.Modifiers)

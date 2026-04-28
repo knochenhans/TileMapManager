@@ -23,13 +23,13 @@ public partial class GeneralTileMapLayer : CustomTileMapLayer
 
     Array<Vector2I> DestroyedTiles = [];
 
-    Dictionary<Vector2I, TileState> TileStates = [];
+    public Dictionary<Vector2I, TileState> TileStates = [];
 
     public Array<TileMapLayer> TopTileMapLayers;
 
     public enum TileDestructionMode
     {
-        None = 0,        // indestructible
+        None = 0,           // indestructible
         DamageStages = 1,   // atlas offset
         RemoveTile = 2      // actual deletion (autotile / terrain)
     }
@@ -347,7 +347,7 @@ public partial class GeneralTileMapLayer : CustomTileMapLayer
     {
         foreach (var zone in TileModifierZones)
         {
-            if (IsPointAllowed(zone, worldPosition))
+            if (!IsPointInZone(zone, worldPosition))
                 continue;
 
             foreach (var modifier in zone.Modifiers)
@@ -356,6 +356,10 @@ public partial class GeneralTileMapLayer : CustomTileMapLayer
                 {
                     case DestructibleModifierResource d:
                         state.IsDestructible = d.IsDestructible;
+                        break;
+
+                    case EnergyModifierResource e:
+                        state.Energy = e.Energy;
                         break;
                 }
             }

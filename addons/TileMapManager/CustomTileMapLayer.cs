@@ -124,7 +124,7 @@ public partial class CustomTileMapLayer : TileMapLayer
         return inside;
     }
 
-    protected bool IsPointAllowed(TileModifierZone zone, Vector2 worldPosition)
+    protected bool IsPointInZone(TileModifierZone zone, Vector2 worldPosition)
     {
         foreach (var child in zone.GetChildren())
         {
@@ -160,7 +160,7 @@ public partial class CustomTileMapLayer : TileMapLayer
 
                     float d = normal.Dot(localPoint.Value);
 
-                    if (d <= distance)
+                    if (d > distance)
                         return true;
                 }
             }

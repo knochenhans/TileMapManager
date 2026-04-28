@@ -9,10 +9,13 @@ public partial class FogOfWarManager : Node
 {
     #region [Fields and Properties]
     [Export] public FogOfWarTileMap FogTileMap;
+    [Export] public TileMapManager TileMapManager;
+    [Export] public Vector2I FogTileAtlasCoord = new(9, 2);
+
+    [ExportCategory("Fill Settings")]
     [Export] public int RevealRadius = 4;
     [Export] public bool PermanentReveal = true;
-    [Export] public Vector2I FogTileAtlasCoord = new(9, 2);
-    [Export] public TileMapManager TileMapManager;
+    [Export] public bool InitiallyFilled = true;
 
     public Array<StageNode> ActorNodes = [];
     public Rect2I UsableArea;
@@ -39,7 +42,8 @@ public partial class FogOfWarManager : Node
             return;
         }
 
-        FillUsableArea(initialPadding);
+        if (InitiallyFilled)
+            FillUsableArea(initialPadding);
 
         // foreach (var node in FogTilemap.TileModifierZones)
         // {
