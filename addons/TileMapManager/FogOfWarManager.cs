@@ -45,6 +45,8 @@ public partial class FogOfWarManager : Node
         if (InitiallyFilled)
             FillUsableArea(initialPadding);
 
+        FogTileMap.Visible = true;
+
         // foreach (var node in FogTilemap.TileModifierZones)
         // {
         //     if (node is TileModifierZone hiddenZone && hiddenZone.FOWHide)
