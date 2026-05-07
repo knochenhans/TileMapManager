@@ -8,7 +8,6 @@ using SaveData = Godot.Collections.Dictionary<string, Godot.Variant>;
 public partial class FogOfWarManager : Node
 {
     #region [Fields and Properties]
-    [Export] public FogOfWarTileMap FogTileMap;
     [Export] public TileMapManager TileMapManager;
     [Export] public Vector2I FogTileAtlasCoord = new(9, 2);
 
@@ -16,6 +15,8 @@ public partial class FogOfWarManager : Node
     [Export] public int RevealRadius = 4;
     [Export] public bool PermanentReveal = true;
     [Export] public bool InitiallyFilled = true;
+
+    FogOfWarTileMap FogTileMap;
 
     public Array<StageNode> ActorNodes = [];
     public Rect2I UsableArea;
@@ -29,6 +30,7 @@ public partial class FogOfWarManager : Node
     #region [Godot]
     public override void _Ready()
     {
+        FogTileMap = TileMapManager.TileMapLayerFogOfWar;
         var fogTileSize = FogTileMap.TileSet.TileSize;
         var defaultTileSize = TileMapManager.DefaultTileSize;
         var factor = new Vector2I(defaultTileSize.X / fogTileSize.X, defaultTileSize.Y / fogTileSize.Y);
@@ -362,6 +364,9 @@ public partial class FogOfWarManager : Node
     {
         if (!UsableArea.HasPoint(fogTile))
             return true;
+
+        if (TileMapManager.TileMapLayerWalls == null || TileMapManager.TileMapLayerWalls.TileSet == null)
+            return false;
 
         var wallTile = FogToWallTile(fogTile);
 
