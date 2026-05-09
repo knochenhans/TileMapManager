@@ -54,15 +54,13 @@ public partial class TileMapManager : Node2D
             return;
         }
 
-        GeneralTileMapLayer[] layers;
-        try
+        Array<GeneralTileMapLayer> layers = [];
+        foreach (var child in GetChildren())
         {
-            layers = [.. GetChildren().Cast<GeneralTileMapLayer>()];
-        }
-        catch (InvalidCastException)
-        {
-            Logger.LogWarning("One or more children of TileMapManager could not be cast to CustomTileMapLayer; filtering valid children instead.", "TileMapManager", Logger.LogTypeEnum.World);
-            layers = [.. GetChildren().OfType<GeneralTileMapLayer>()];
+            if (child is GeneralTileMapLayer layer)
+                layers.Add(layer);
+            else
+                Logger.LogWarning($"Child node {child.Name} of TileMapManager cannot be cast to GeneralTileMapLayer and will be ignored.", "TileMapManager", Logger.LogTypeEnum.World);
         }
 
         Array<TileMapLayer> topTileMapLayers = [];
