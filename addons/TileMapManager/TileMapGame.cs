@@ -52,7 +52,7 @@ public partial class TileMapGame : EntitySystemGame
     #endregion
 
     #region [Events]
-    protected virtual void OnTileDestroyed(ExplosionResource explosionResource, Node2D source, Vector2 position, float strength)
+    protected virtual void OnTileDestroyed(VisualEffectResource explosionResource, Node2D source, Vector2 position, float strength)
     {
         (Camera as Camera).AddTrauma(strength);
     }

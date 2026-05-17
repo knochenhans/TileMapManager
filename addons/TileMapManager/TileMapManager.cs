@@ -30,14 +30,14 @@ public partial class TileMapManager : Node2D
     [Export] public string MaterialTileDataLayerName = "material";
     [Export] public NavigationRegion2D NavigationRegion;
 
-    [Signal] public delegate void TileHitEventHandler(ExplosionResource explosionResource, Node2D source, Vector2 position, float strength);
-    [Signal] public delegate void TileDestroyedEventHandler(ExplosionResource explosionResource, Node2D source, Vector2 position, float strength);
+    [Signal] public delegate void TileHitEventHandler(VisualEffectResource explosionResource, Node2D source, Vector2 position, float strength);
+    [Signal] public delegate void TileDestroyedEventHandler(VisualEffectResource explosionResource, Node2D source, Vector2 position, float strength);
 
     Array<TileMapLayer> TileMapLayers = [];
 
-    public ExplosionDatabase HitExplosionDatabase;
-    public ExplosionDatabase GroundHitExplosionDatabase;
-    public ExplosionDatabase DestructionExplosionDatabase;
+    public VisualEffectDatabase HitExplosionDatabase;
+    public VisualEffectDatabase GroundHitExplosionDatabase;
+    public VisualEffectDatabase DestructionExplosionDatabase;
 
     MapGenerator MapGenerator = new();
     Array<Rect2I> Rooms = [];
@@ -161,18 +161,18 @@ public partial class TileMapManager : Node2D
     {
         if (result.WasHit)
         {
-            var explosionResource = HitExplosionDatabase.GetExplosionResource(material);
-            if (explosionResource != null)
-                EmitSignal(SignalName.TileHit, explosionResource, layer, position, result.Strength);
+            var visualEffectResource = HitExplosionDatabase.GetVisualEffectResource(material);
+            if (visualEffectResource != null)
+                EmitSignal(SignalName.TileHit, visualEffectResource, layer, position, result.Strength);
         }
 
         if (result.WasDestroyed)
         {
-            var explosionResource = DestructionExplosionDatabase.GetExplosionResource(material);
-            if (explosionResource != null)
+            var visualEffectResource = DestructionExplosionDatabase.GetVisualEffectResource(material);
+            if (visualEffectResource != null)
             {
-                EmitSignal(SignalName.TileHit, explosionResource, layer, position, result.Strength);
-                EmitSignal(SignalName.TileDestroyed, explosionResource, layer, position, result.Strength);
+                EmitSignal(SignalName.TileHit, visualEffectResource, layer, position, result.Strength);
+                EmitSignal(SignalName.TileDestroyed, visualEffectResource, layer, position, result.Strength);
             }
 
             NavigationRegion?.BakeNavigationPolygon();
