@@ -49,25 +49,6 @@ public partial class TileMapGame : EntitySystemGame
     #endregion
 
     #region [Utility]
-    protected static HashSet<Vector2I> GetTilesFromRectangle(Rect2 rect)
-    {
-        HashSet<Vector2I> roomTiles = [];
-
-        var tileMapManager = (StageManager.Instance.CurrentStageScene as TileMapStage).TileMapManager;
-
-        var topLeft = tileMapManager.WorldToMap(rect.Position) + new Vector2I(1, -1);
-        var bottomRight = tileMapManager.WorldToMap(rect.Position + rect.Size) - new Vector2I(0, 0);
-
-        for (int x = topLeft.X; x <= bottomRight.X; x++)
-        {
-            for (int y = topLeft.Y; y <= bottomRight.Y; y++)
-            {
-                roomTiles.Add(new Vector2I(x, y));
-            }
-        }
-        return roomTiles;
-    }
-
     protected async Task BakeNavigationPolygonAsync()
     {
         if (NavigationRegion.IsBaking())

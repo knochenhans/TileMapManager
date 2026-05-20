@@ -76,27 +76,17 @@ public partial class GeneralTileMapLayer : CustomTileMapLayer
     //TODO: Use physics to detect tile hits, get RID to handle big tiles better (atlas)
 
     #region [Public Methods]
-    public TileImpactResult ApplyDamage(Vector2 position, int damage)
-    {
-        Vector2I tilePosition = LocalToMap(position);
-        var result = ApplyDamage(tilePosition, damage);
-        if (result.WasHit)
-            EmitSignal(SignalName.TileHit, position, damage, result.Material);
-        if (result.WasDestroyed)
-            EmitSignal(SignalName.TileDestroyed, position, result.Material, result.Strength);
-        return result;
-    }
 
-    public TileImpactResult ApplyDamage(Vector2I tilePosition, int damage)
+    public TileImpactResult ApplyTileImpact(TileImpactHit hit)
     {
         var result = new TileImpactResult();
 
-        if (TileStates.TryGetValue(tilePosition, out var state))
+        if (TileStates.TryGetValue(hit.Cell, out var state))
         {
-            if (!state.IsDestructible)
-                return result;
+            var health = state.Health;
 
-            var health = state.Health - damage;
+            if (state.IsDestructible)
+                health = state.Health - (int)hit.ImpactData.DamageData.Amount;
 
             if (health < 0)
             {
@@ -108,7 +98,7 @@ public partial class GeneralTileMapLayer : CustomTileMapLayer
             }
             else
             {
-                if (ApplyVisualStageFromState(tilePosition, state))
+                if (ApplyVisualStageFromState(hit.Cell, state))
                 {
                     RemoveTile(state.RootPosition, state.Size);
 
