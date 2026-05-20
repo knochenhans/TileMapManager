@@ -383,7 +383,7 @@ public partial class TileMapManager : Node2D
         return layer.GetCellTileData(tilePosition);
     }
 
-    public Array<Vector2I> GetTilesInRadius(Vector2I center, int radius, TileMapLayer layer)
+    public static Array<Vector2I> GetTilesInRadius(Vector2I center, int radius, TileMapLayer layer)
     {
         Array<Vector2I> tiles = [];
         for (int x = center.X - radius; x <= center.X + radius; x++)
@@ -400,7 +400,7 @@ public partial class TileMapManager : Node2D
         return tiles;
     }
 
-    public bool IsTilePositionEmpty(Vector2I tilePosition, TileMapLayer layer)
+    public static bool IsTilePositionEmpty(Vector2I tilePosition, TileMapLayer layer)
     {
         return layer.GetCellTileData(tilePosition) == null;
     }
@@ -524,7 +524,7 @@ public partial class TileMapManager : Node2D
         return tiles.OrderBy(_ => GD.Randf()).FirstOrDefault();
     }
 
-    public Vector2I GetTileSize(TileMapLayer layer)
+    public static Vector2I GetTileSize(TileMapLayer layer)
     {
         if (layer.TileSet == null)
         {

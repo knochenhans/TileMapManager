@@ -344,7 +344,7 @@ public partial class FogOfWarManager : Node
         }
     }
 
-    private (int xx, int xy, int yx, int yy) GetTransformForOctant(int octant)
+    private static (int xx, int xy, int yx, int yy) GetTransformForOctant(int octant)
     {
         return octant switch
         {
@@ -384,7 +384,7 @@ public partial class FogOfWarManager : Node
         return true;
     }
 
-    private void GetInnerOuterTiles(Rect2I tileRect, int padding, int margin, out Array<Vector2I> innerTiles, out Array<Vector2I> outerTiles)
+    private static void GetInnerOuterTiles(Rect2I tileRect, int padding, int margin, out Array<Vector2I> innerTiles, out Array<Vector2I> outerTiles)
     {
         innerTiles = [];
         outerTiles = [];

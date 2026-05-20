@@ -86,7 +86,7 @@ public partial class CustomTileMapLayer : TileMapLayer
         }
     }
 
-    protected Rect2 GetBounds(System.Collections.Generic.List<Vector2> points)
+    protected static Rect2 GetBounds(System.Collections.Generic.List<Vector2> points)
     {
         float minX = points[0].X;
         float maxX = points[0].X;
@@ -104,7 +104,7 @@ public partial class CustomTileMapLayer : TileMapLayer
         return new Rect2(new Vector2(minX, minY), new Vector2(maxX - minX, maxY - minY));
     }
 
-    protected bool PointInPolygon(Vector2 point, System.Collections.Generic.List<Vector2> polygon)
+    protected static bool PointInPolygon(Vector2 point, System.Collections.Generic.List<Vector2> polygon)
     {
         bool inside = false;
 
@@ -124,7 +124,7 @@ public partial class CustomTileMapLayer : TileMapLayer
         return inside;
     }
 
-    protected bool IsPointInZone(TileModifierZone zone, Vector2 worldPosition)
+    protected static bool IsPointInZone(TileModifierZone zone, Vector2 worldPosition)
     {
         foreach (var child in zone.GetChildren())
         {
