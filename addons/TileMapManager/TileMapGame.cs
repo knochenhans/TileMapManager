@@ -17,9 +17,8 @@ public partial class TileMapGame : EntitySystemGame
         base.InitGame(loadGame);
 
         var tileMapManager = (stage as TileMapStage).TileMapManager;
-        tileMapManager.TileHit += CombatSystem.OnAddExplosion;
-        tileMapManager.TileDestroyed += OnTileDestroyed;
-        tileMapManager.TileDestroyed += CombatSystem.OnAddExplosion;
+        CombatSystem.TileImpactRequested += tileMapManager.ApplyTileImpact;
+        tileMapManager.TileImpacted += GameContext.VisualEffectSystem.OnImpact;
 
         NavigationRegion = stage.GetNodeOrNull<NavigationRegion2D>("NavigationRegion2D");
         // GameInputManager = new TilemapGameInputManager(this, Camera, (stage as TileMapStage).TileMapManager);
@@ -32,9 +31,7 @@ public partial class TileMapGame : EntitySystemGame
             return;
 
         var tileMapManager = (stage as TileMapStage).TileMapManager;
-        tileMapManager.TileHit -= CombatSystem.OnAddExplosion;
-        tileMapManager.TileDestroyed -= OnTileDestroyed;
-        tileMapManager.TileDestroyed -= CombatSystem.OnAddExplosion;
+        tileMapManager.TileImpacted -= GameContext.VisualEffectSystem.OnImpact;
 
         base.UninitGame();
     }
@@ -48,13 +45,6 @@ public partial class TileMapGame : EntitySystemGame
         }
 
         base.InitStageNode(stageNode);
-    }
-    #endregion
-
-    #region [Events]
-    protected virtual void OnTileDestroyed(VisualEffectResource explosionResource, Node2D source, Vector2 position, float strength)
-    {
-        (Camera as Camera).AddTrauma(strength);
     }
     #endregion
 

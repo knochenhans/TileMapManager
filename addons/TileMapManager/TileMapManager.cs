@@ -30,14 +30,11 @@ public partial class TileMapManager : Node2D
     [Export] public string MaterialTileDataLayerName = "material";
     [Export] public NavigationRegion2D NavigationRegion;
 
-    [Signal] public delegate void TileHitEventHandler(VisualEffectResource explosionResource, Node2D source, Vector2 position, float strength);
-    [Signal] public delegate void TileDestroyedEventHandler(VisualEffectResource explosionResource, Node2D source, Vector2 position, float strength);
+    [Signal] public delegate void TileImpactedEventHandler(ImpactEventData data);
 
     Array<TileMapLayer> TileMapLayers = [];
 
-    public VisualEffectDatabase HitExplosionDatabase;
-    public VisualEffectDatabase GroundHitExplosionDatabase;
-    public VisualEffectDatabase DestructionExplosionDatabase;
+    public VisualEffectDatabase VisualEffectDatabase;
 
     MapGenerator MapGenerator = new();
     Array<Rect2I> Rooms = [];
@@ -157,54 +154,65 @@ public partial class TileMapManager : Node2D
     #endregion
 
     #region [Public]
-    private void HandleImpactResult(TileImpactResult result, Node2D source, TileMapLayer layer, Vector2 position, string material)
+    public void ApplyTileImpact(TileImpactResult impactResult)
     {
+        var hit = ResolveImpact(impactResult);
+
+        if (hit == null)
+            return;
+
+        var result = (hit.Layer as GeneralTileMapLayer)?.ApplyTileImpact(hit);
+
+        if (result == null)
+            return;
+
         if (result.WasHit)
         {
-            var visualEffectResource = HitExplosionDatabase.GetVisualEffectResource(material);
-            if (visualEffectResource != null)
-                EmitSignal(SignalName.TileHit, visualEffectResource, layer, position, result.Strength);
-        }
+            Vector2 worldPos = hit.Layer.MapToLocal(hit.Cell) + (GetTileSize(hit.Layer) / 2);
 
-        if (result.WasDestroyed)
-        {
-            var visualEffectResource = DestructionExplosionDatabase.GetVisualEffectResource(material);
-            if (visualEffectResource != null)
+            var materialString = hit.Layer.GetCellTileData(hit.Cell)?.GetCustomData(MaterialTileDataLayerName).ToString() ?? "unknown";
+
+            if (!Enum.TryParse(materialString, true, out MaterialType materialType))
             {
-                EmitSignal(SignalName.TileHit, visualEffectResource, layer, position, result.Strength);
-                EmitSignal(SignalName.TileDestroyed, visualEffectResource, layer, position, result.Strength);
+                Logger.LogWarning($"Failed to parse material type '{materialString}' from tile data at cell {hit.Cell} in layer {hit.Layer.Name}. Defaulting to MaterialType.None.", "TileMapManager", Logger.LogTypeEnum.World);
+                materialType = MaterialType.None;
             }
 
-            NavigationRegion?.BakeNavigationPolygon();
+            EmitSignal(
+            SignalName.TileImpacted,
+            new ImpactEventData
+            {
+                Position = worldPos,
+                Direction = impactResult.ImpactData.Direction,
+                MaterialType = materialType,
+                Force = result.Strength,
+                Destroyed = result.WasDestroyed,
+                VisualEffectType = result.WasDestroyed ? VisualEffectType.Destruction : VisualEffectType.Hit,
+                LightColorOverride = impactResult.ImpactData.ProjectileResource.LightColor,
+                LightEnergyOverride = impactResult.ImpactData.ProjectileResource.LightEnergy
+            });
         }
+
+        if (result.RequiresNavigationRebuild)
+            NavigationRegion?.BakeNavigationPolygon();
     }
 
-    public bool ApplyTileImpact(TileImpact impact)
+    public TileImpactHit ResolveImpact(TileImpactResult impactResult)
     {
-        var layers = LayersByTag.Where(kvp => kvp.Key.HasFlag(impact.TargetTag)).SelectMany(kvp => kvp.Value).ToArray();
-        if (layers.Length == 0)
+        var hit = new TileImpactHit
         {
-            Logger.LogWarning($"No layers found with tag {impact.TargetTag}. Tile impact will not be applied.", "TileMapManager", Logger.LogTypeEnum.World);
-            return false;
+            Cell = WorldToMap(impactResult.ImpactData.Position),
+            Layer = impactResult.HitLayer,
+            ImpactData = impactResult.ImpactData
+        };
+
+        if (hit.Layer == null)
+        {
+            Logger.LogWarning($"No tile layer found at position {impactResult.ImpactData.Position} for impact. Impact will be ignored.", "TileMapManager", Logger.LogTypeEnum.World);
+            return null;
         }
 
-        var layer = layers[0];
-
-        if (!TryRaycastTile(impact.Source.GlobalPosition, impact.WorldPosition, layer.TileSet.GetPhysicsLayerCollisionLayer(0), out var hitPos, out var cell))
-            return false;
-
-        var tileData = layer.GetCellTileData(cell);
-        if (tileData == null)
-            return false;
-        string material = impact.ForcedMaterial;
-
-        if (string.IsNullOrEmpty(material))
-            material = tileData.GetCustomData(MaterialTileDataLayerName).AsString();
-
-        var result = layer.ApplyDamage(cell, impact.Damage);
-
-        HandleImpactResult(result, impact.Source, layer, hitPos, material);
-        return result.WasHit;
+        return hit;
     }
 
     public bool TryRaycastTile(Vector2 origin, Vector2 target, uint collisionMask, out Vector2 hitPosition, out Vector2I cell)
